@@ -283,7 +283,7 @@
       max-height: 100px;
       overflow-y: auto;
     }
-    /* Buttons */
+
     .btn {
       display: inline-flex;
       align-items: center;
@@ -345,7 +345,6 @@
       cursor: default;
     }
 
-    /* Settings cards */
     .settings-row {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -372,7 +371,6 @@
       color: #e5e7eb;
     }
 
-    /* Playlist and player */
     .player-section {
       display: grid;
       grid-template-columns: minmax(0, 36%) minmax(0, 64%);
@@ -565,7 +563,6 @@
       min-width: 20px;
     }
 
-    /* Reciter Organization */
     .reciter-section {
       margin-bottom: 20px;
     }
@@ -580,7 +577,7 @@
     .reciter-content {
       padding-left: 15px;
     }
-    /* Alerts */
+
     .alert {
       padding: 12px 15px;
       border-radius: 6px;
@@ -709,7 +706,7 @@
               <label>Audio Files</label>
               <label class="file-input-label">
                 <span>Choose audio files</span>
-                <input type="file" id="audioFiles" class="file-input" multiple>
+                <input type="file" id="audioFiles" class="file-input" accept="audio/*" multiple>
               </label>
               <div id="fileListPreview" class="file-list-preview">
                 No files selected
@@ -872,6 +869,13 @@
           <div>Organize your files by reciter and surah for easier playlist creation.</div>
         </div>
 
+        <!-- NEW: Clear Library button -->
+        <div style="margin-bottom: 12px; display: flex; flex-wrap: wrap; gap: 8px;">
+          <button id="clearLibraryButton" class="btn btn-secondary" style="font-size: 11px; padding: 6px 10px;">
+            🗑 Clear all audio from this device
+          </button>
+        </div>
+
         <div id="recitersList">
           <p>No reciters added yet. Upload files first.</p>
         </div>
@@ -883,8 +887,8 @@
     const appState = {
       library: {
         files: [],
-        reciters: {},  // Maps reciter to array of files
-        surahs: {}     // Maps surah to array of files
+        reciters: {},
+        surahs: {}
       },
       playlist: {
         files: [],
@@ -901,7 +905,6 @@
       }
     };
 
-    // IndexedDB persistence
     let db;
     const DB_NAME = 'quran-player';
     const DB_VERSION = 1;
@@ -982,7 +985,6 @@
               verse: rec.verse
             };
 
-            // Add to library
             appState.library.files.push(fileObj);
 
             if (fileObj.reciter) {
@@ -1000,13 +1002,11 @@
             }
           });
 
-          // Default playlist: all files
           if (appState.library.files.length > 0) {
             appState.playlist.files = appState.library.files.slice();
             appState.playlist.currentIndex = 0;
           }
 
-          // Refresh UI
           updateRecitersDropdown();
           updateSurahsDropdown();
           updateRecitersList();
@@ -1022,7 +1022,6 @@
       });
     }
 
-    // DOM elements
     const elements = {
       tabs: document.querySelectorAll('.tab'),
       tabContents: document.querySelectorAll('.tab-content'),
@@ -1050,10 +1049,10 @@
       playbackInfo: document.getElementById('playbackInfo'),
       installBanner: document.getElementById('installBanner'),
       dismissBanner: document.getElementById('dismissBanner'),
-      playlistCount: document.getElementById('playlistCount')
+      playlistCount: document.getElementById('playlistCount'),
+      clearLibraryButton: document.getElementById('clearLibraryButton') // NEW
     };
 
-    // Initialize app
     document.addEventListener('DOMContentLoaded', async () => {
       initEventListeners();
       showInstallBannerIfNeeded();
@@ -1070,14 +1069,12 @@
       }
     });
 
-    // Check if the app is running as a PWA
     function isRunningAsApp() {
       return window.matchMedia('(display-mode: standalone)').matches ||
              window.navigator.standalone ||
              document.referrer.includes('android-app://');
     }
 
-    // Show install banner for iOS
     function showInstallBannerIfNeeded() {
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
       if (isIOS && !isRunningAsApp()) {
@@ -1086,7 +1083,6 @@
     }
 
     function initEventListeners() {
-      // Tab switching
       elements.tabs.forEach(tab => {
         tab.addEventListener('click', () => {
           const target = tab.dataset.tab;
@@ -1097,29 +1093,22 @@
         });
       });
 
-      // File input change
       elements.audioFilesInput.addEventListener('change', function() {
         updateFilePreview(this.files);
       });
 
-      // File upload handling
       elements.uploadButton.addEventListener('click', handleFileUpload);
-
-      // Playlist creation
       elements.createPlaylistButton.addEventListener('click', createPlaylistFromRange);
 
-      // Player controls
       elements.playButton.addEventListener('click', togglePlayback);
       elements.stopButton.addEventListener('click', stopPlayback);
       elements.prevButton.addEventListener('click', playPreviousTrack);
       elements.nextButton.addEventListener('click', playNextTrack);
       elements.clearPlaylistButton.addEventListener('click', clearPlaylist);
 
-      // Audio events
       appState.playback.audio.addEventListener('timeupdate', updateProgressBar);
       appState.playback.audio.addEventListener('ended', handleTrackEnd);
 
-      // Playback settings
       elements.playlistRepeatsInput.addEventListener('change', function() {
         appState.playlist.totalRepeats = parseInt(this.value) || 1;
       });
@@ -1128,12 +1117,10 @@
         appState.playback.totalVerseRepeats = parseInt(this.value) || 1;
       });
 
-      // Install banner
       elements.dismissBanner.addEventListener('click', function() {
         elements.installBanner.classList.remove('show');
       });
 
-      // Handle file item clicks in playlist
       elements.playlistFilesContainer.addEventListener('click', function(e) {
         const fileItem = e.target.closest('.file-item');
         if (fileItem) {
@@ -1145,9 +1132,11 @@
           }
         }
       });
+
+      // NEW: clear full library
+      elements.clearLibraryButton.addEventListener('click', clearLibrary);
     }
 
-    // Update file preview
     function updateFilePreview(files) {
       if (files.length === 0) {
         elements.fileListPreview.textContent = 'No files selected';
@@ -1161,7 +1150,6 @@
       elements.fileListPreview.innerHTML = fileList;
     }
 
-    // File handling functions
     function handleFileUpload() {
       const files = elements.audioFilesInput.files;
       if (files.length === 0) {
@@ -1172,7 +1160,6 @@
       const reciter = elements.reciterNameInput.value || 'Unknown Reciter';
       const surah = elements.surahNameInput.value || 'Unknown Surah';
 
-      // Initialize reciter and surah in library if not exists
       if (!appState.library.reciters[reciter]) {
         appState.library.reciters[reciter] = [];
       }
@@ -1180,7 +1167,6 @@
         appState.library.surahs[surah] = [];
       }
 
-      // Process each file
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const fileObj = {
@@ -1190,19 +1176,15 @@
           name: file.name,
           reciter: reciter,
           surah: surah,
-          // Try to extract verse number from filename
           verse: extractVerseNumber(file.name)
         };
 
-        // Add to library
         appState.library.files.push(fileObj);
         appState.library.reciters[reciter].push(fileObj);
         appState.library.surahs[surah].push(fileObj);
 
-        // Add to current playlist as well
         appState.playlist.files.push(fileObj);
 
-        // Persist to IndexedDB
         if (window.indexedDB) {
           saveFileToDB(fileObj).catch(err => {
             console.error('Error saving file to IndexedDB', err);
@@ -1210,7 +1192,6 @@
         }
       }
 
-      // Update UI
       updateRecitersDropdown();
       updateSurahsDropdown();
       updateRecitersList();
@@ -1222,17 +1203,16 @@
     }
 
     function generateUniqueId() {
-      return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      return Math.random().toString(36).substring(2, 15) +
+             Math.random().toString(36).substring(2, 15);
     }
 
     function extractVerseNumber(filename) {
-      // Try to extract a number from the filename
       const matches = filename.match(/\d+/);
       if (!matches) return null;
       return parseInt(matches[0], 10);
     }
 
-    // Library UI updates
     function updateRecitersDropdown() {
       const reciters = Object.keys(appState.library.reciters);
       elements.reciterSelect.innerHTML = '<option value="">All Reciters</option>';
@@ -1278,7 +1258,6 @@
             <div class="reciter-content">
         `;
 
-        // Group by surah
         const surahMap = {};
         reciterFiles.forEach(file => {
           if (!surahMap[file.surah]) {
@@ -1349,7 +1328,6 @@
       elements.playlistCount.textContent = appState.playlist.files.length.toString();
     }
 
-    // Playlist creation
     function createPlaylistFromRange() {
       const startVerse = parseInt(elements.startVerseInput.value);
       const endVerse = parseInt(elements.endVerseInput.value);
@@ -1366,7 +1344,6 @@
         return;
       }
 
-      // Filter library files based on selection
       let filteredFiles = appState.library.files.filter(file => {
         if (reciter && file.reciter !== reciter) return false;
         if (surah && file.surah !== surah) return false;
@@ -1374,7 +1351,6 @@
         return true;
       });
 
-      // Sort by verse number if available
       filteredFiles.sort((a, b) => {
         if (a.verse && b.verse) return a.verse - b.verse;
         return a.name.localeCompare(b.name);
@@ -1385,7 +1361,6 @@
         return;
       }
 
-      // Create a new playlist
       appState.playlist.files = filteredFiles;
       appState.playlist.currentIndex = 0;
       appState.playback.currentVerseRepeat = 0;
@@ -1395,7 +1370,6 @@
       alert(`Created playlist with ${filteredFiles.length} verses`);
     }
 
-    // Playback functions
     function togglePlayback() {
       if (appState.playback.isPlaying) {
         pausePlayback();
@@ -1440,7 +1414,8 @@
 
       elements.playButton.textContent = '⏸';
       elements.stopButton.disabled = false;
-      elements.nowPlayingTitle.textContent = `${currentFile.reciter || 'Unknown Reciter'} — ${currentFile.surah || 'Unknown Surah'} ${currentFile.verse ? `(Verse ${currentFile.verse})` : ''}`;
+      elements.nowPlayingTitle.textContent =
+        `${currentFile.reciter || 'Unknown Reciter'} — ${currentFile.surah || 'Unknown Surah'} ${currentFile.verse ? `(Verse ${currentFile.verse})` : ''}`;
       updatePlaybackInfo();
       updatePlaylistDisplay();
     }
@@ -1468,7 +1443,9 @@
         return;
       }
 
-      appState.playlist.currentIndex = (appState.playlist.currentIndex - 1 + appState.playlist.files.length) % appState.playlist.files.length;
+      appState.playlist.currentIndex =
+        (appState.playlist.currentIndex - 1 + appState.playlist.files.length) %
+        appState.playlist.files.length;
       appState.playback.currentVerseRepeat = 0;
       playCurrentTrack();
     }
@@ -1476,7 +1453,8 @@
     function playNextTrack() {
       if (appState.playlist.files.length === 0) return;
 
-      appState.playlist.currentIndex = (appState.playlist.currentIndex + 1) % appState.playlist.files.length;
+      appState.playlist.currentIndex =
+        (appState.playlist.currentIndex + 1) % appState.playlist.files.length;
       appState.playback.currentVerseRepeat = 0;
       playCurrentTrack();
     }
@@ -1520,7 +1498,7 @@
     function updateProgressBar() {
       if (!appState.playback.isPlaying) return;
       const percent = (appState.playback.audio.currentTime / appState.playback.audio.duration) * 100;
-      elements.progressBar.style.width = `${percent}%`;
+      elements.progressBar.style.width = `${percent || 0}%`;
     }
 
     function clearPlaylist() {
@@ -1531,6 +1509,55 @@
         appState.playlist.playlistRepeatCount = 0;
         updatePlaylistDisplay();
       }
+    }
+
+    // NEW: clear full library + IndexedDB
+    function clearLibrary() {
+      if (!confirm('This will remove ALL uploaded audio from this browser on THIS device. This cannot be undone. Continue?')) {
+        return;
+      }
+
+      // Stop playback
+      appState.playback.audio.pause();
+      appState.playback.isPlaying = false;
+      elements.playButton.textContent = '▶';
+      elements.stopButton.disabled = true;
+
+      // Revoke object URLs
+      appState.library.files.forEach(f => {
+        try {
+          if (f.url) URL.revokeObjectURL(f.url);
+        } catch (e) {}
+      });
+
+      // Clear in-memory structures
+      appState.library.files = [];
+      appState.library.reciters = {};
+      appState.library.surahs = {};
+      appState.playlist.files = [];
+      appState.playlist.currentIndex = 0;
+      appState.playlist.playlistRepeatCount = 0;
+      appState.playback.currentVerseRepeat = 0;
+
+      // Reset UI
+      updateRecitersDropdown();
+      updateSurahsDropdown();
+      updateRecitersList();
+      updatePlaylistDisplay();
+      elements.nowPlayingTitle.textContent = 'No track selected';
+      elements.playbackInfo.textContent = '—';
+      elements.fileListPreview.textContent = 'No files selected';
+
+      // Clear IndexedDB
+      if (db) {
+        const tx = db.transaction(FILE_STORE, 'readwrite');
+        const store = tx.objectStore(FILE_STORE);
+        store.clear();
+        tx.oncomplete = () => console.log('IndexedDB library cleared');
+        tx.onerror = () => console.error('Error clearing DB', tx.error);
+      }
+
+      alert('All uploaded audio has been removed from this browser.');
     }
 
     if ('serviceWorker' in navigator) {

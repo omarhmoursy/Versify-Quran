@@ -1,1596 +1,1211 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Quranic Recitation Player</title>
-  <!-- PWA and iOS install support -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Quran Player">
-  <link rel="apple-touch-icon" href="quran-icon.png">
-  <link rel="manifest" href="manifest.json">
-  <style>
-    :root {
-      --primary-color: #1d3557;
-      --secondary-color: #457b9d;
-      --accent-color: #a8dadc;
-      --background-color: #f1faee;
-      --surface-color: #ffffff;
-      --danger-color: #e63946;
-      --muted-color: #6c757d;
-      --text-color: #1f2933;
-      --border-radius: 12px;
-      --shadow-soft: 0 10px 30px rgba(15, 23, 42, 0.15);
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, -webkit-system-font, sans-serif;
-      background-color: #0f172a;
-      background-image: radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.15) 0, transparent 40%), radial-gradient(circle at 80% 80%, rgba(16, 185, 129, 0.12) 0, transparent 45%);
-      color: #e5e7eb;
-      min-height: 100vh;
-      padding: 16px;
-    }
-
-    .app-container {
-      max-width: 980px;
-      margin: 0 auto;
-      background: radial-gradient(circle at top left, rgba(59,130,246,0.18), transparent 55%), #020617;
-      border-radius: 24px;
-      box-shadow: var(--shadow-soft);
-      border: 1px solid rgba(148,163,184,0.25);
-      padding: 18px;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .app-container::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: radial-gradient(circle at top right, rgba(45,212,191,0.16), transparent 55%);
-      opacity: 0.9;
-      pointer-events: none;
-    }
-
-    .app-inner {
-      position: relative;
-      z-index: 1;
-    }
-
-    header {
-      margin-bottom: 20px;
-      padding-bottom: 12px;
-      border-bottom: 1px solid rgba(148,163,184,0.35);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-    }
-
-    .title-group {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .app-icon {
-      width: 38px;
-      height: 38px;
-      border-radius: 12px;
-      background: radial-gradient(circle at 30% 30%, #22c55e, #065f46);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #ecfdf5;
-      font-size: 20px;
-      box-shadow: 0 8px 25px rgba(16, 185, 129, 0.5);
-      border: 1px solid rgba(16, 185, 129, 0.4);
-    }
-
-    h1 {
-      font-size: 20px;
-      margin: 0;
-      color: #e5e7eb;
-      letter-spacing: 0.02em;
-    }
-
-    .subtitle {
-      margin: 2px 0 0;
-      font-size: 12px;
-      color: #9ca3af;
-    }
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 9px;
-      border-radius: 999px;
-      background-color: rgba(15,23,42,0.8);
-      border: 1px solid rgba(148,163,184,0.6);
-      color: #e5e7eb;
-      font-size: 11px;
-      white-space: nowrap;
-    }
-
-    .badge-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 999px;
-      background-color: #22c55e;
-      box-shadow: 0 0 0 3px rgba(34,197,94,0.35);
-    }
-
-    .tabs {
-      display: flex;
-      margin-bottom: 16px;
-      padding: 3px;
-      background-color: rgba(15,23,42,0.9);
-      border-radius: 999px;
-      border: 1px solid rgba(31,41,55,0.9);
-    }
-
-    .tab {
-      flex: 1;
-      padding: 8px 10px;
-      text-align: center;
-      border-radius: 999px;
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 500;
-      color: #9ca3af;
-      border: none;
-      background: transparent;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      transition: all 0.17s ease;
-    }
-
-    .tab.active {
-      background: radial-gradient(circle at 20% 0, rgba(59,130,246,0.45), rgba(37,99,235,0.95));
-      color: #f9fafb;
-      box-shadow: 0 7px 18px rgba(37,99,235,0.55);
-    }
-
-    .tab span.icon {
-      font-size: 15px;
-    }
-
-    .tab-content {
-      display: none;
-      border-radius: 18px;
-      background-color: rgba(15,23,42,0.9);
-      border: 1px solid rgba(31,41,55,0.9);
-      padding: 14px;
-      margin-bottom: 14px;
-      backdrop-filter: blur(20px);
-    }
-
-    .tab-content.active {
-      display: block;
-    }
-
-    .section-title {
-      font-size: 14px;
-      margin: 0 0 8px;
-      color: #e5e7eb;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .section-title small {
-      font-size: 11px;
-      color: #9ca3af;
-      font-weight: 400;
-    }
-
-    .section-icon {
-      font-size: 16px;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-    }
-
-    @media (max-width: 768px) {
-      .grid {
-        grid-template-columns: 1fr;
-      }
-
-      .app-container {
-        padding: 14px;
-      }
-    }
-
-    .form-group {
-      margin-bottom: 10px;
-    }
-
-    label {
-      display: block;
-      margin-bottom: 4px;
-      font-size: 11px;
-      color: #9ca3af;
-      font-weight: 500;
-      letter-spacing: 0.03em;
-      text-transform: uppercase;
-    }
-
-    input[type="text"],
-    input[type="number"],
-    select {
-      width: 100%;
-      padding: 7px 9px;
-      border-radius: 9px;
-      border: 1px solid rgba(55,65,81,0.95);
-      background-color: rgba(15,23,42,0.95);
-      color: #e5e7eb;
-      font-size: 13px;
-      outline: none;
-      transition: all 0.15s ease;
-    }
-
-    input[type="text"]:focus,
-    input[type="number"]:focus,
-    select:focus {
-      border-color: rgba(59,130,246,0.9);
-      box-shadow: 0 0 0 1px rgba(59,130,246,0.5);
-    }
-
-    input[type="file"] {
-      display: none;
-    }
-
-    .file-input-label {
-      display: block;
-      padding: 12px;
-      background-color: var(--secondary-color);
-      color: white;
-      border-radius: 6px;
-      text-align: center;
-      cursor: pointer;
-      font-weight: 500;
-      transition: all 0.3s ease;
-    }
-    .file-input-label:hover {
-      background-color: var(--primary-color);
-    }
-    .file-input {
-      position: absolute;
-      font-size: 100px;
-      right: 0;
-      top: 0;
-      opacity: 0;
-      cursor: pointer;
-    }
-    .file-list-preview {
-      margin-top: 10px;
-      padding: 10px;
-      border: 1px dashed var(--accent-color);
-      border-radius: 6px;
-      max-height: 100px;
-      overflow-y: auto;
-    }
-    /* Buttons */
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 8px 12px;
-      border-radius: 999px;
-      border: none;
-      cursor: pointer;
-      font-weight: 500;
-      font-size: 13px;
-      transition: all 0.2s ease;
-      gap: 6px;
-    }
-
-    .btn-primary {
-      background: linear-gradient(135deg, #3b82f6, #10b981);
-      color: white;
-      box-shadow: 0 8px 20px rgba(59,130,246,0.4);
-    }
-
-    .btn-primary:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 10px 24px rgba(59,130,246,0.55);
-      filter: brightness(1.03);
-    }
-
-    .btn-secondary {
-      background-color: rgba(15,23,42,0.95);
-      color: #e5e7eb;
-      border: 1px solid rgba(55,65,81,0.9);
-    }
-
-    .btn-secondary:hover {
-      background-color: rgba(31,41,55,0.95);
-    }
-
-    .btn-danger {
-      background-color: var(--danger-color);
-      color: #f9fafb;
-      box-shadow: 0 8px 20px rgba(220,38,38,0.45);
-    }
-
-    .btn-danger:hover {
-      filter: brightness(0.95);
-      transform: translateY(-1px);
-      box-shadow: 0 10px 24px rgba(220,38,38,0.6);
-    }
-
-    .btn-icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 999px;
-      background-color: rgba(15,23,42,0.95);
-      border: 1px solid rgba(55,65,81,0.9);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #e5e7eb;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      font-size: 14px;
-    }
-
-    .btn-icon:hover:not(:disabled) {
-      background-color: rgba(31,41,55,0.95);
-      transform: translateY(-1px);
-    }
-
-    .btn-icon:disabled {
-      opacity: 0.4;
-      cursor: default;
-    }
-
-    /* Settings cards */
-    .settings-row {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 10px;
-      margin-top: 8px;
-    }
-
-    @media (max-width: 768px) {
-      .settings-row {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .setting-box {
-      border-radius: 12px;
-      border: 1px solid rgba(55,65,81,0.95);
-      padding: 10px;
-      background: radial-gradient(circle at top left, rgba(59,130,246,0.12), transparent 55%);
-    }
-
-    .setting-box h3 {
-      margin: 0 0 6px;
-      font-size: 13px;
-      color: #e5e7eb;
-    }
-
-    /* Playlist and player */
-    .player-section {
-      display: grid;
-      grid-template-columns: minmax(0, 36%) minmax(0, 64%);
-      gap: 12px;
-    }
-
-    @media (max-width: 768px) {
-      .player-section {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .player-card {
-      border-radius: 16px;
-      border: 1px solid rgba(55,65,81,0.9);
-      background: radial-gradient(circle at top left, rgba(59,130,246,0.18), transparent 55%), rgba(15,23,42,0.95);
-      padding: 12px;
-      box-shadow: 0 12px 28px rgba(15,23,42,0.65);
-    }
-
-    .player-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-      gap: 8px;
-    }
-
-    .player-title {
-      font-size: 13px;
-      margin: 0;
-      color: #e5e7eb;
-    }
-
-    .now-playing {
-      font-size: 12px;
-      color: #e5e7eb;
-      margin: 5px 0;
-      line-height: 1.5;
-    }
-
-    .playback-info {
-      font-size: 11px;
-      color: #9ca3af;
-      margin: 4px 0 0;
-    }
-
-    .progress-bar-container {
-      width: 100%;
-      height: 4px;
-      border-radius: 999px;
-      background-color: rgba(31,41,55,0.9);
-      margin: 8px 0 10px;
-      overflow: hidden;
-    }
-
-    .progress-bar {
-      width: 0;
-      height: 100%;
-      background: linear-gradient(90deg, #22c55e, #eab308);
-      transition: width 0.15s linear;
-    }
-
-    .player-controls {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      margin-top: 4px;
-    }
-
-    .transport-controls {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-    }
-
-    .playlist-meta {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      color: #9ca3af;
-    }
-
-    .pill {
-      border-radius: 999px;
-      background-color: rgba(15,23,42,0.95);
-      border: 1px solid rgba(55,65,81,0.9);
-      padding: 4px 8px;
-      font-size: 11px;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .pill-dot {
-      width: 5px;
-      height: 5px;
-      border-radius: 999px;
-      background-color: #22c55e;
-    }
-
-    .playlist-card {
-      border-radius: 16px;
-      border: 1px solid rgba(55,65,81,0.9);
-      background-color: rgba(15,23,42,0.95);
-      padding: 10px;
-      max-height: 270px;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .playlist-card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .playlist-title {
-      font-size: 13px;
-      margin: 0;
-      color: #e5e7eb;
-    }
-
-    .playlist-count {
-      font-size: 11px;
-      color: #9ca3af;
-    }
-
-    .playlist-actions {
-      display: flex;
-      gap: 6px;
-    }
-
-    .playlist-list {
-      margin: 4px 0 0;
-      padding: 0;
-      list-style: none;
-      overflow-y: auto;
-      border-radius: 10px;
-      border: 1px solid rgba(31,41,55,0.9);
-      background: radial-gradient(circle at top left, rgba(30,64,175,0.25), transparent 55%), rgba(15,23,42,0.9);
-      flex: 1;
-    }
-
-    .file-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 7px 9px;
-      font-size: 12px;
-      border-bottom: 1px solid rgba(31,41,55,0.9);
-      cursor: pointer;
-      transition: all 0.15s ease;
-    }
-
-    .file-item:hover {
-      background-color: rgba(31,41,55,0.95);
-    }
-
-    .file-item.active {
-      background: linear-gradient(90deg, rgba(56,189,248,0.25), rgba(22,163,74,0.35));
-      border-left: 2px solid #22c55e;
-    }
-
-    .file-main {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-
-    .file-title {
-      font-weight: 500;
-      color: #e5e7eb;
-    }
-
-    .file-meta {
-      font-size: 11px;
-      color: #9ca3af;
-    }
-
-    .file-index {
-      font-size: 11px;
-      color: #9ca3af;
-      margin-right: 6px;
-      min-width: 20px;
-    }
-
-    /* Reciter Organization */
-    .reciter-section {
-      margin-bottom: 20px;
-    }
-    .reciter-header {
-      padding: 12px;
-      background-color: var(--light-color);
-      border-radius: 6px;
-      font-weight: 500;
-      margin-bottom: 10px;
-      cursor: pointer;
-    }
-    .reciter-content {
-      padding-left: 15px;
-    }
-    /* Alerts */
-    .alert {
-      padding: 12px 15px;
-      border-radius: 6px;
-      margin-bottom: 15px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .alert-info {
-      background-color: var(--accent-color);
-      color: var(--primary-color);
-    }
-    .alert-success {
-      background-color: #d1fae5;
-      color: #047857;
-    }
-    .alert-warning {
-      background-color: #fef9c3;
-      color: #854d0e;
-    }
-    .alert-icon {
-      font-size: 16px;
-    }
-
-    #installBanner {
-      position: fixed;
-      bottom: 16px;
-      left: 50%;
-      transform: translateX(-50%) translateY(160%);
-      background-color: #020617;
-      color: #e5e7eb;
-      border-radius: 999px;
-      padding: 10px 16px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      box-shadow: 0 18px 45px rgba(15,23,42,0.85);
-      border: 1px solid rgba(148,163,184,0.6);
-      z-index: 50;
-      max-width: 95vw;
-      font-size: 12px;
-      transition: transform 0.25s ease-out;
-    }
-
-    #installBanner.show {
-      transform: translateX(-50%) translateY(0);
-    }
-
-    #installBanner button {
-      font-size: 11px;
-      padding: 5px 9px;
-      border-radius: 999px;
-      border: none;
-      background-color: rgba(15,23,42,0.95);
-      color: #e5e7eb;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      border: 1px solid rgba(55,65,81,0.9);
-    }
-
-    #installBanner button:hover {
-      background-color: rgba(31,41,55,0.95);
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quranic Recitation Player</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Quran Player">
+    <link rel="apple-touch-icon" href="quran-icon.png">
+    <link rel="manifest" href="manifest.json">
+    <style>
+        :root {
+            --primary-color: #1d3557;
+            --secondary-color: #457b9d;
+            --accent-color: #a8dadc;
+            --background-color: #f1faee;
+            --surface-color: #ffffff;
+            --danger-color: #e63946;
+            --muted-color: #6c757d;
+            --text-color: #1f2933;
+            --border-radius: 12px;
+            --shadow-soft: 0 10px 30px rgba(15, 23, 42, 0.15);
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, -webkit-system-font, sans-serif;
+            background-color: #0f172a;
+            background-image: radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.15) 0, transparent 40%), radial-gradient(circle at 80% 80%, rgba(16, 185, 129, 0.12) 0, transparent 45%);
+            color: #e5e7eb;
+            min-height: 100vh;
+            padding: 16px;
+        }
+
+        .app-container {
+            max-width: 980px;
+            margin: 0 auto;
+            background: radial-gradient(circle at top left, rgba(59,130,246,0.18), transparent 55%), #020617;
+            border-radius: 24px;
+            box-shadow: var(--shadow-soft);
+            border: 1px solid rgba(148,163,184,0.25);
+            padding: 18px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .app-container::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at top right, rgba(45,212,191,0.16), transparent 55%);
+            opacity: 0.9;
+            pointer-events: none;
+        }
+
+        .app-inner { position: relative; z-index: 1; }
+
+        header {
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid rgba(148,163,184,0.35);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .title-group { display: flex; align-items: center; gap: 10px; }
+
+        .app-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
+            background: radial-gradient(circle at 30% 30%, #22c55e, #065f46);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ecfdf5;
+            font-size: 20px;
+            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.5);
+            border: 1px solid rgba(16, 185, 129, 0.4);
+        }
+
+        h1 { font-size: 20px; margin: 0; color: #e5e7eb; letter-spacing: 0.02em; }
+        .subtitle { margin: 2px 0 0; font-size: 12px; color: #9ca3af; }
+
+        .badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 4px 9px; border-radius: 999px;
+            background-color: rgba(15,23,42,0.8);
+            border: 1px solid rgba(148,163,184,0.6);
+            color: #e5e7eb; font-size: 11px; white-space: nowrap;
+        }
+        .badge-dot { width: 6px; height: 6px; border-radius: 999px; background-color: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,0.35); }
+
+        .tabs {
+            display: flex; margin-bottom: 16px; padding: 3px;
+            background-color: rgba(15,23,42,0.9);
+            border-radius: 999px; border: 1px solid rgba(31,41,55,0.9);
+        }
+
+        .tab {
+            flex: 1; padding: 8px 10px; text-align: center; border-radius: 999px;
+            cursor: pointer; font-size: 13px; font-weight: 500; color: #9ca3af;
+            border: none; background: transparent;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+            transition: all 0.17s ease;
+        }
+        .tab.active {
+            background: radial-gradient(circle at 20% 0, rgba(59,130,246,0.45), rgba(37,99,235,0.95));
+            color: #f9fafb;
+            box-shadow: 0 7px 18px rgba(37,99,235,0.55);
+        }
+        .tab span.icon { font-size: 15px; }
+
+        .tab-content {
+            display: none; border-radius: 18px;
+            background-color: rgba(15,23,42,0.9);
+            border: 1px solid rgba(31,41,55,0.9);
+            padding: 14px; margin-bottom: 14px;
+            backdrop-filter: blur(20px);
+        }
+        .tab-content.active { display: block; }
+
+        .section-title { font-size: 14px; margin: 0 0 8px; color: #e5e7eb; display: flex; align-items: center; gap: 6px; }
+        .section-title small { font-size: 11px; color: #9ca3af; font-weight: 400; }
+        .section-icon { font-size: 16px; }
+
+        .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+        @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
+            .app-container { padding: 14px; }
+        }
+
+        .form-group { margin-bottom: 10px; }
+        label { display: block; margin-bottom: 4px; font-size: 11px; color: #9ca3af; font-weight: 500; letter-spacing: 0.03em; text-transform: uppercase; }
+
+        input[type="text"], input[type="number"], select {
+            width: 100%; padding: 7px 9px; border-radius: 9px;
+            border: 1px solid rgba(55,65,81,0.95);
+            background-color: rgba(15,23,42,0.95); color: #e5e7eb; font-size: 13px;
+            outline: none; transition: all 0.15s ease;
+        }
+        input[type="text"]:focus, input[type="number"]:focus, select:focus {
+            border-color: rgba(59,130,246,0.9); box-shadow: 0 0 0 1px rgba(59,130,246,0.5);
+        }
+
+        input[type="file"] { display: none; }
+        .file-input-label {
+            display: block; padding: 12px; background-color: var(--secondary-color);
+            color: white; border-radius: 6px; text-align: center; cursor: pointer;
+            font-weight: 500; transition: all 0.3s ease;
+        }
+        .file-input-label:hover { background-color: var(--primary-color); }
+
+        .file-list-preview {
+            margin-top: 10px; padding: 10px;
+            border: 1px dashed var(--accent-color);
+            border-radius: 6px; max-height: 100px; overflow-y: auto;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            padding: 8px 12px; border-radius: 999px; border: none;
+            cursor: pointer; font-weight: 500; font-size: 13px;
+            transition: all 0.2s ease; gap: 6px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6, #10b981); color: white;
+            box-shadow: 0 8px 20px rgba(59,130,246,0.4);
+        }
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 24px rgba(59,130,246,0.55);
+            filter: brightness(1.03);
+        }
+        .btn-secondary {
+            background-color: rgba(15,23,42,0.95); color: #e5e7eb;
+            border: 1px solid rgba(55,65,81,0.9);
+        }
+        .btn-secondary:hover { background-color: rgba(31,41,55,0.95); }
+
+        .btn-danger {
+            background-color: rgba(220, 38, 38, 0.2);
+            color: #fca5a5;
+            border: 1px solid rgba(220, 38, 38, 0.5);
+        }
+        .btn-danger:hover {
+            background-color: rgba(220, 38, 38, 0.35);
+        }
+
+        .btn-icon {
+            width: 32px; height: 32px; border-radius: 999px;
+            background-color: rgba(15,23,42,0.95);
+            border: 1px solid rgba(55,65,81,0.9);
+            display: flex; align-items: center; justify-content: center;
+            color: #e5e7eb; cursor: pointer; transition: all 0.15s ease; font-size: 14px;
+        }
+        .btn-icon:hover:not(:disabled) {
+            background-color: rgba(31,41,55,0.95); transform: translateY(-1px);
+        }
+        .btn-icon:disabled { opacity: 0.4; cursor: default; }
+
+        /* Settings cards */
+        .settings-row {
+            display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 8px;
+        }
+        @media (max-width: 768px) { .settings-row { grid-template-columns: 1fr; } }
+
+        .setting-box {
+            border-radius: 12px; border: 1px solid rgba(55,65,81,0.95);
+            padding: 10px; background: radial-gradient(circle at top left, rgba(59,130,246,0.12), transparent 55%);
+        }
+        .setting-box h3 { margin: 0 0 6px; font-size: 13px; color: #e5e7eb; }
+
+        /* Playlist and player */
+        .player-section {
+            display: grid; grid-template-columns: minmax(0, 36%) minmax(0, 64%); gap: 12px;
+        }
+        @media (max-width: 768px) { .player-section { grid-template-columns: 1fr; } }
+
+        .player-card {
+            border-radius: 16px; border: 1px solid rgba(55,65,81,0.9);
+            background: radial-gradient(circle at top left, rgba(59,130,246,0.18), transparent 55%), rgba(15,23,42,0.95);
+            padding: 12px; box-shadow: 0 12px 28px rgba(15,23,42,0.65);
+        }
+        .player-header {
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 8px;
+        }
+        .player-title { font-size: 13px; margin: 0; color: #e5e7eb; }
+        .now-playing { font-size: 12px; color: #e5e7eb; margin: 5px 0; line-height: 1.5; }
+        .playback-info { font-size: 11px; color: #9ca3af; margin: 4px 0 0; }
+
+        .progress-bar-container {
+            width: 100%; height: 4px; border-radius: 999px;
+            background-color: rgba(31,41,55,0.9); margin: 8px 0 10px; overflow: hidden;
+        }
+        .progress-bar { width: 0; height: 100%; background: linear-gradient(90deg, #22c55e, #eab308); transition: width 0.15s linear; }
+
+        .player-controls { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
+        .transport-controls { display: flex; gap: 6px; align-items: center; }
+        .playlist-meta { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #9ca3af; }
+
+        .pill {
+            border-radius: 999px; background-color: rgba(15,23,42,0.95);
+            border: 1px solid rgba(55,65,81,0.9); padding: 4px 8px;
+            font-size: 11px; display: inline-flex; align-items: center; gap: 4px;
+        }
+        .pill-dot { width: 5px; height: 5px; border-radius: 999px; background-color: #22c55e; }
+
+        .playlist-card {
+            border-radius: 16px; border: 1px solid rgba(55,65,81,0.9);
+            background-color: rgba(15,23,42,0.95); padding: 10px;
+            max-height: 270px; overflow: hidden; display: flex; flex-direction: column; gap: 6px;
+        }
+        .playlist-card-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        .playlist-title { font-size: 13px; margin: 0; color: #e5e7eb; }
+        .playlist-count { font-size: 11px; color: #9ca3af; }
+        .playlist-actions { display: flex; gap: 6px; }
+
+        .playlist-list {
+            margin: 4px 0 0; padding: 0; list-style: none; overflow-y: auto;
+            border-radius: 10px; border: 1px solid rgba(31,41,55,0.9);
+            background: radial-gradient(circle at top left, rgba(30,64,175,0.25), transparent 55%), rgba(15,23,42,0.9);
+            flex: 1;
+        }
+
+        .file-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 7px 9px; font-size: 12px; border-bottom: 1px solid rgba(31,41,55,0.9);
+            cursor: pointer; transition: all 0.15s ease;
+        }
+        .file-item:hover { background-color: rgba(31,41,55,0.95); }
+        .file-item.active {
+            background: linear-gradient(90deg, rgba(56,189,248,0.25), rgba(22,163,74,0.35));
+            border-left: 2px solid #22c55e;
+        }
+
+        .file-main { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+        .file-title { font-weight: 500; color: #e5e7eb; }
+        .file-meta { font-size: 11px; color: #9ca3af; }
+        .file-index { font-size: 11px; color: #9ca3af; margin-right: 6px; min-width: 20px; }
+
+        .delete-btn {
+            background: transparent; border: none; font-size: 14px;
+            cursor: pointer; padding: 4px; margin-left: 8px;
+            opacity: 0.6; transition: opacity 0.2s;
+        }
+        .delete-btn:hover { opacity: 1; transform: scale(1.1); }
+
+        /* Reciter Organization */
+        .reciter-section { margin-bottom: 20px; }
+        .reciter-header { padding: 12px; background-color: var(--light-color); border-radius: 6px; font-weight: 500; margin-bottom: 10px; cursor: pointer; }
+        .reciter-content { padding-left: 15px; }
+
+        /* Alerts */
+        .alert { padding: 12px 15px; border-radius: 6px; margin-bottom: 15px; display: flex; align-items: center; gap: 10px; }
+        .alert-info { background-color: var(--accent-color); color: var(--primary-color); }
+        .alert-success { background-color: #d1fae5; color: #047857; }
+        .alert-warning { background-color: #fef9c3; color: #854d0e; }
+        .alert-icon { font-size: 16px; }
+
+        .storage-zone {
+            margin-top: 20px; padding-top: 20px;
+            border-top: 1px solid rgba(148,163,184,0.3);
+        }
+
+        #installBanner {
+            position: fixed; bottom: 16px; left: 50%;
+            transform: translateX(-50%) translateY(160%);
+            background-color: #020617; color: #e5e7eb;
+            border-radius: 999px; padding: 10px 16px;
+            display: flex; align-items: center; gap: 10px;
+            box-shadow: 0 18px 45px rgba(15,23,42,0.85);
+            border: 1px solid rgba(148,163,184,0.6);
+            z-index: 50; max-width: 95vw; font-size: 12px;
+            transition: transform 0.25s ease-out;
+        }
+        #installBanner.show { transform: translateX(-50%) translateY(0); }
+        #installBanner button {
+            font-size: 11px; padding: 5px 9px; border-radius: 999px;
+            border: none; background-color: rgba(15,23,42,0.95);
+            color: #e5e7eb; cursor: pointer; display: inline-flex;
+            align-items: center; gap: 4px; border: 1px solid rgba(55,65,81,0.9);
+        }
+        #installBanner button:hover { background-color: rgba(31,41,55,0.95); }
+    </style>
 </head>
 <body>
-  <div id="installBanner">
+
+<div id="installBanner">
     <span>📱 Add Quran Player to your Home Screen for a better experience.</span>
     <button id="dismissBanner">Got it</button>
-  </div>
+</div>
 
-  <div class="app-container">
+<div class="app-container">
     <div class="app-inner">
-      <header>
-        <div class="title-group">
-          <div class="app-icon">﷽</div>
-          <div>
-            <h1>Quranic Recitation Player</h1>
-            <p class="subtitle">Upload, organize, and build verse-based playlists with repeats.</p>
-          </div>
-        </div>
-        <div class="badge">
-          <span class="badge-dot"></span>
-          <span>Offline-ready · Local library</span>
-        </div>
-      </header>
-
-      <div class="tabs">
-        <button class="tab active" data-tab="upload">
-          <span class="icon">⬆️</span>
-          <span>Upload & Tag</span>
-        </button>
-        <button class="tab" data-tab="playlist">
-          <span class="icon">🎧</span>
-          <span>Playlist & Player</span>
-        </button>
-        <button class="tab" data-tab="organization">
-          <span class="icon">📚</span>
-          <span>Library</span>
-        </button>
-      </div>
-
-      <!-- Upload Tab -->
-      <div class="tab-content active" id="uploadContent">
-        <h2 class="section-title">
-          <span class="section-icon">📂</span>
-          Upload Audio Files
-          <small>Files are stored locally in your browser (IndexedDB).</small>
-        </h2>
-
-        <div class="grid">
-          <div>
-            <div class="form-group">
-              <label for="reciterName">Reciter Name</label>
-              <input type="text" id="reciterName" placeholder="e.g., Al-Afasy, Al-Husary">
-            </div>
-
-            <div class="form-group">
-              <label for="surahName">Surah Name</label>
-              <input type="text" id="surahName" placeholder="e.g., Al-Baqarah, Al-Fatihah">
-            </div>
-
-            <div class="form-group">
-              <label>Audio Files</label>
-              <label class="file-input-label">
-                <span>Choose audio files</span>
-                <input type="file" id="audioFiles" class="file-input" multiple>
-              </label>
-              <div id="fileListPreview" class="file-list-preview">
-                No files selected
-              </div>
-
-              <button id="uploadButton" class="btn btn-primary" style="margin-top: 10px;">
-                <span>➕ Add to Library</span>
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <div class="alert alert-info">
-              <span class="alert-icon">ℹ️</span>
-              <div>
-                <strong>Tip:</strong> Name your verse files with numbers (e.g., <code>001.mp3</code>, <code>002.mp3</code>) so the app can detect verse numbers automatically.
-              </div>
-            </div>
-
-            <div class="alert alert-success">
-              <span class="alert-icon">💾</span>
-              <div>
-                Your uploaded files are stored locally using <strong>IndexedDB</strong>, so they remain available even after closing the page (until iOS/browser clears site data).
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Playlist Tab -->
-      <div class="tab-content" id="playlistContent">
-        <h2 class="section-title">
-          <span class="section-icon">🎧</span>
-          Build Playlist
-          <small>Select reciter / surah and verse range, then control repeats.</small>
-        </h2>
-
-        <div class="grid">
-          <div>
-            <div class="form-group">
-              <label for="reciterSelect">Reciter</label>
-              <select id="reciterSelect">
-                <option value="">All Reciters</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label for="surahSelect">Surah</label>
-              <select id="surahSelect">
-                <option value="">All Surahs</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label>Verse Range</label>
-              <div class="grid" style="grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;">
+        <header>
+            <div class="title-group">
+                <div class="app-icon">﷽</div>
                 <div>
-                  <label for="startVerse">Start Verse:</label>
-                  <input type="number" id="startVerse" min="1" value="1">
+                    <h1>Quranic Recitation Player</h1>
+                    <p class="subtitle">Upload, organize, and build verse-based playlists with repeats.</p>
+                </div>
+            </div>
+            <div class="badge">
+                <span class="badge-dot"></span>
+                <span>Offline-ready · Local library</span>
+            </div>
+        </header>
+
+        <div class="tabs">
+            <button class="tab active" data-tab="upload">
+                <span class="icon">⬆️</span> <span>Upload & Tag</span>
+            </button>
+            <button class="tab" data-tab="playlist">
+                <span class="icon">🎧</span> <span>Playlist & Player</span>
+            </button>
+            <button class="tab" data-tab="organization">
+                <span class="icon">📚</span> <span>Library</span>
+            </button>
+        </div>
+
+        <div class="tab-content active" id="uploadContent">
+            <h2 class="section-title">
+                <span class="section-icon">📂</span> Upload Audio Files
+                <small>Files are stored locally in your browser (IndexedDB).</small>
+            </h2>
+            <div class="grid">
+                <div>
+                    <div class="form-group">
+                        <label for="reciterName">Reciter Name</label>
+                        <input type="text" id="reciterName" placeholder="e.g., Al-Afasy, Al-Husary">
+                    </div>
+                    <div class="form-group">
+                        <label for="surahName">Surah Name</label>
+                        <input type="text" id="surahName" placeholder="e.g., Al-Baqarah, Al-Fatihah">
+                    </div>
+                    <div class="form-group">
+                        <label>Audio Files</label>
+                        <label class="file-input-label">
+                            <span>Choose audio files</span>
+                            <input type="file" id="audioFiles" class="file-input" multiple>
+                        </label>
+                        <div id="fileListPreview" class="file-list-preview">
+                            No files selected
+                        </div>
+                        <button id="uploadButton" class="btn btn-primary" style="margin-top: 10px;">
+                            <span>➕ Add to Library</span>
+                        </button>
+                    </div>
                 </div>
                 <div>
-                  <label for="endVerse">End Verse:</label>
-                  <input type="number" id="endVerse" min="1" value="7">
+                    <div class="alert alert-info">
+                        <span class="alert-icon">ℹ️</span>
+                        <div>
+                            <strong>Tip:</strong> Name your verse files with numbers (e.g., <code>001.mp3</code>, <code>002.mp3</code>) so the app can detect verse numbers automatically.
+                        </div>
+                    </div>
+                    <div class="alert alert-success">
+                        <span class="alert-icon">💾</span>
+                        <div>
+                            Your uploaded files are stored locally using <strong>IndexedDB</strong>, so they remain available even after closing the page.
+                        </div>
+                    </div>
                 </div>
-              </div>
             </div>
 
-            <button id="createPlaylistButton" class="btn btn-primary">Create Playlist</button>
-          </div>
-
-          <div>
-            <h3 class="section-title">
-              <span class="section-icon">🔁</span>
-              Playback Settings
-            </h3>
-
-            <div class="settings-row">
-              <div class="setting-box">
-                <h3>Playlist Settings</h3>
-                <div class="form-group">
-                  <label for="playlistRepeats">Repeat Playlist:</label>
-                  <input type="number" id="playlistRepeats" min="1" value="1">
-                </div>
-              </div>
-
-              <div class="setting-box">
-                <h3>Verse Settings</h3>
-                <div class="form-group">
-                  <label for="verseRepeats">Repeat Each Verse:</label>
-                  <input type="number" id="verseRepeats" min="1" value="3">
-                </div>
-              </div>
-
-              <div class="setting-box">
-                <h3>Info</h3>
-                <p style="font-size: 11px; color: #9ca3af; margin: 0;">
-                  The player will repeat each verse the specified number of times, then move to the next verse. The entire playlist will repeat according to the Playlist setting.
+            <div class="storage-zone">
+                <h3 class="section-title"><span class="section-icon">🗑️</span> Storage Management</h3>
+                <p style="font-size: 12px; color: #9ca3af; margin-bottom: 10px;">
+                    Use this to reduce database size or reset the application.
                 </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="player-section" style="margin-top: 14px;">
-          <div class="player-card">
-            <div class="player-header">
-              <div>
-                <p class="player-title">Now Playing</p>
-                <p id="nowPlayingTitle" class="now-playing">No track selected</p>
-                <p id="playbackInfo" class="playback-info">—</p>
-              </div>
-              <div class="pill">
-                <span class="pill-dot"></span>
-                <span style="font-size: 11px;">Verse-repeat mode</span>
-              </div>
-            </div>
-
-            <div class="progress-bar-container">
-              <div id="progressBar" class="progress-bar"></div>
-            </div>
-
-            <div class="player-controls">
-              <div class="transport-controls">
-                <button id="prevButton" class="btn-icon" title="Previous track">⏮</button>
-                <button id="playButton" class="btn-icon" title="Play/Pause">▶</button>
-                <button id="stopButton" class="btn-icon" title="Stop" disabled>⏹</button>
-                <button id="nextButton" class="btn-icon" title="Next track">⏭</button>
-              </div>
-              <div class="playlist-meta">
-                <span class="pill">
-                  <span id="playlistCount">0</span> tracks
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div class="playlist-card">
-            <div class="playlist-card-header">
-              <div>
-                <p class="playlist-title">Current Playlist</p>
-                <p class="playlist-count">Tap a verse to jump directly.</p>
-              </div>
-              <div class="playlist-actions">
-                <button id="clearPlaylistButton" class="btn-secondary btn" style="font-size: 11px; padding: 6px 10px;">
-                  Clear
+                <button id="clearLibraryButton" class="btn btn-danger">
+                    ⚠️ Clear Entire Library
                 </button>
-              </div>
             </div>
-            <ul id="playlistFiles" class="playlist-list">
-              <!-- Playlist items will appear here -->
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      <!-- Organization Tab -->
-      <div class="tab-content" id="organizationContent">
-        <div class="alert alert-info">
-          <span>💡</span>
-          <div>Organize your files by reciter and surah for easier playlist creation.</div>
         </div>
 
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-          <h2 class="section-title">
-            <span class="section-icon">📚</span>
-            Library
-            <small>All uploaded recitations</small>
-          </h2>
-          <button id="clearLibraryButton" class="btn btn-danger" style="font-size:11px; padding:6px 10px;">
-            Clear Library
-          </button>
+        <div class="tab-content" id="playlistContent">
+            <h2 class="section-title">
+                <span class="section-icon">🎧</span> Build Playlist
+                <small>Select reciter / surah and verse range, then control repeats.</small>
+            </h2>
+
+            <div class="grid">
+                <div>
+                    <div class="form-group">
+                        <label for="reciterSelect">Reciter</label>
+                        <select id="reciterSelect">
+                            <option value="">All Reciters</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="surahSelect">Surah</label>
+                        <select id="surahSelect">
+                            <option value="">All Surahs</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Verse Range</label>
+                        <div class="grid" style="grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;">
+                            <div>
+                                <label for="startVerse">Start Verse:</label>
+                                <input type="number" id="startVerse" min="1" value="1">
+                            </div>
+                            <div>
+                                <label for="endVerse">End Verse:</label>
+                                <input type="number" id="endVerse" min="1" value="7">
+                            </div>
+                        </div>
+                    </div>
+                    <button id="createPlaylistButton" class="btn btn-primary">Create Playlist</button>
+                </div>
+                <div>
+                    <h3 class="section-title">
+                        <span class="section-icon">🔁</span> Playback Settings
+                    </h3>
+                    <div class="settings-row">
+                        <div class="setting-box">
+                            <h3>Playlist Settings</h3>
+                            <div class="form-group">
+                                <label for="playlistRepeats">Repeat Playlist:</label>
+                                <input type="number" id="playlistRepeats" min="1" value="1">
+                            </div>
+                        </div>
+                        <div class="setting-box">
+                            <h3>Verse Settings</h3>
+                            <div class="form-group">
+                                <label for="verseRepeats">Repeat Each Verse:</label>
+                                <input type="number" id="verseRepeats" min="1" value="3">
+                            </div>
+                        </div>
+                        <div class="setting-box">
+                            <h3>Info</h3>
+                            <p style="font-size: 11px; color: #9ca3af; margin: 0;">
+                                The player will repeat each verse the specified number of times, then move to the next verse.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="player-section" style="margin-top: 14px;">
+                <div class="player-card">
+                    <div class="player-header">
+                        <div>
+                            <p class="player-title">Now Playing</p>
+                            <p id="nowPlayingTitle" class="now-playing">No track selected</p>
+                            <p id="playbackInfo" class="playback-info">—</p>
+                        </div>
+                        <div class="pill">
+                            <span class="pill-dot"></span>
+                            <span style="font-size: 11px;">Verse-repeat mode</span>
+                        </div>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div id="progressBar" class="progress-bar"></div>
+                    </div>
+                    <div class="player-controls">
+                        <div class="transport-controls">
+                            <button id="prevButton" class="btn-icon" title="Previous track">⏮</button>
+                            <button id="playButton" class="btn-icon" title="Play/Pause">▶</button>
+                            <button id="stopButton" class="btn-icon" title="Stop" disabled>⏹</button>
+                            <button id="nextButton" class="btn-icon" title="Next track">⏭</button>
+                        </div>
+                        <div class="playlist-meta">
+                            <span class="pill">
+                                <span id="playlistCount">0</span> tracks
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="playlist-card">
+                    <div class="playlist-card-header">
+                        <div>
+                            <p class="playlist-title">Current Playlist</p>
+                            <p class="playlist-count">Tap verse to play. Tap 🗑️ to delete.</p>
+                        </div>
+                        <div class="playlist-actions">
+                            <button id="clearPlaylistButton" class="btn-secondary btn" style="font-size: 11px; padding: 6px 10px;">
+                                Clear Playlist
+                            </button>
+                        </div>
+                    </div>
+                    <ul id="playlistFiles" class="playlist-list">
+                        </ul>
+                </div>
+            </div>
         </div>
 
-        <div id="recitersList">
-          <p>No reciters added yet. Upload files first.</p>
+        <div class="tab-content" id="organizationContent">
+            <div class="alert alert-info">
+                <span>💡</span>
+                <div>Organize your files by reciter and surah for easier playlist creation.</div>
+            </div>
+            <div id="recitersList">
+                <p>No reciters added yet. Upload files first.</p>
+            </div>
         </div>
-      </div>
+
     </div>
-  </div>
+</div>
 
-  <script>
+<script>
     const appState = {
-      library: {
-        files: [],
-        reciters: {},
-        surahs: {}
-      },
-      playlist: {
-        files: [],
-        currentIndex: 0,
-        currentRepeat: 0,
-        playlistRepeatCount: 0,
-        totalRepeats: 1
-      },
-      playback: {
-        isPlaying: false,
-        audio: new Audio(),
-        currentVerseRepeat: 0,
-        totalVerseRepeats: 3
-      }
+        library: {
+            files: [],
+            reciters: {},
+            surahs: {}
+        },
+        playlist: {
+            files: [],
+            currentIndex: 0,
+            currentRepeat: 0,
+            playlistRepeatCount: 0,
+            totalRepeats: 1
+        },
+        playback: {
+            isPlaying: false,
+            audio: new Audio(),
+            currentVerseRepeat: 0,
+            totalVerseRepeats: 3
+        }
     };
 
+    // IndexedDB persistence
     let db;
     const DB_NAME = 'quran-player';
     const DB_VERSION = 1;
     const FILE_STORE = 'files';
 
     function initDB() {
-      return new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-        request.onupgradeneeded = (event) => {
-          db = event.target.result;
-          if (!db.objectStoreNames.contains(FILE_STORE)) {
-            const store = db.createObjectStore(FILE_STORE, { keyPath: 'id' });
-            store.createIndex('reciter', 'reciter', { unique: false });
-            store.createIndex('surah', 'surah', { unique: false });
-          }
-        };
-
-        request.onsuccess = (event) => {
-          db = event.target.result;
-          resolve();
-        };
-
-        request.onerror = () => {
-          console.error('IndexedDB error:', request.error);
-          reject(request.error);
-        };
-      });
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
+            request.onupgradeneeded = (event) => {
+                db = event.target.result;
+                if (!db.objectStoreNames.contains(FILE_STORE)) {
+                    const store = db.createObjectStore(FILE_STORE, { keyPath: 'id' });
+                    store.createIndex('reciter', 'reciter', { unique: false });
+                    store.createIndex('surah', 'surah', { unique: false });
+                }
+            };
+            request.onsuccess = (event) => {
+                db = event.target.result;
+                resolve();
+            };
+            request.onerror = () => {
+                console.error('IndexedDB error:', request.error);
+                reject(request.error);
+            };
+        });
     }
 
     function saveFileToDB(fileObj) {
-      return new Promise((resolve, reject) => {
-        if (!db) return resolve();
+        return new Promise((resolve, reject) => {
+            if (!db) return resolve();
+            const tx = db.transaction(FILE_STORE, 'readwrite');
+            const store = tx.objectStore(FILE_STORE);
+            const record = {
+                id: fileObj.id,
+                name: fileObj.name,
+                reciter: fileObj.reciter,
+                surah: fileObj.surah,
+                verse: fileObj.verse,
+                blob: fileObj.file
+            };
+            store.put(record);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => {
+                console.error('Failed to save file to DB', tx.error);
+                reject(tx.error);
+            };
+        });
+    }
 
-        const tx = db.transaction(FILE_STORE, 'readwrite');
-        const store = tx.objectStore(FILE_STORE);
+    // New Function: Delete specific file from DB
+    function deleteFileFromDB(id) {
+        return new Promise((resolve, reject) => {
+            if (!db) return resolve();
+            const tx = db.transaction(FILE_STORE, 'readwrite');
+            const store = tx.objectStore(FILE_STORE);
+            const request = store.delete(id);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    }
 
-        const record = {
-          id: fileObj.id,
-          name: fileObj.name,
-          reciter: fileObj.reciter,
-          surah: fileObj.surah,
-          verse: fileObj.verse,
-          blob: fileObj.file
-        };
-
-        store.put(record);
-
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => {
-          console.error('Failed to save file to DB', tx.error);
-          reject(tx.error);
-        };
-      });
+    // New Function: Clear entire DB
+    function clearAllFromDB() {
+        return new Promise((resolve, reject) => {
+            if (!db) return resolve();
+            const tx = db.transaction(FILE_STORE, 'readwrite');
+            const store = tx.objectStore(FILE_STORE);
+            const request = store.clear();
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
     }
 
     function loadLibraryFromDB() {
-      return new Promise((resolve, reject) => {
-        if (!db) return resolve();
+        return new Promise((resolve, reject) => {
+            if (!db) return resolve();
+            const tx = db.transaction(FILE_STORE, 'readonly');
+            const store = tx.objectStore(FILE_STORE);
+            const request = store.getAll();
 
-        const tx = db.transaction(FILE_STORE, 'readonly');
-        const store = tx.objectStore(FILE_STORE);
-        const request = store.getAll();
+            request.onsuccess = () => {
+                const records = request.result || [];
+                records.forEach((rec) => {
+                    const blob = rec.blob;
+                    const url = URL.createObjectURL(blob);
+                    const fileObj = {
+                        id: rec.id,
+                        file: blob,
+                        url: url,
+                        name: rec.name,
+                        reciter: rec.reciter,
+                        surah: rec.surah,
+                        verse: rec.verse
+                    };
 
-        request.onsuccess = () => {
-          const records = request.result || [];
-          records.forEach((rec) => {
-            const blob = rec.blob;
-            const url = URL.createObjectURL(blob);
+                    // Add to library
+                    appState.library.files.push(fileObj);
 
-            const fileObj = {
-              id: rec.id,
-              file: blob,
-              url: url,
-              name: rec.name,
-              reciter: rec.reciter,
-              surah: rec.surah,
-              verse: rec.verse
+                    if (fileObj.reciter) {
+                        if (!appState.library.reciters[fileObj.reciter]) {
+                            appState.library.reciters[fileObj.reciter] = [];
+                        }
+                        appState.library.reciters[fileObj.reciter].push(fileObj);
+                    }
+                    if (fileObj.surah) {
+                        if (!appState.library.surahs[fileObj.surah]) {
+                            appState.library.surahs[fileObj.surah] = [];
+                        }
+                        appState.library.surahs[fileObj.surah].push(fileObj);
+                    }
+                });
+
+                // Default playlist: all files
+                if (appState.library.files.length > 0) {
+                    appState.playlist.files = appState.library.files.slice();
+                    appState.playlist.currentIndex = 0;
+                }
+
+                // Refresh UI
+                updateRecitersDropdown();
+                updateSurahsDropdown();
+                updateRecitersList();
+                updatePlaylistDisplay();
+                resolve();
             };
-
-            appState.library.files.push(fileObj);
-
-            if (fileObj.reciter) {
-              if (!appState.library.reciters[fileObj.reciter]) {
-                appState.library.reciters[fileObj.reciter] = [];
-              }
-              appState.library.reciters[fileObj.reciter].push(fileObj);
-            }
-
-            if (fileObj.surah) {
-              if (!appState.library.surahs[fileObj.surah]) {
-                appState.library.surahs[fileObj.surah] = [];
-              }
-              appState.library.surahs[fileObj.surah].push(fileObj);
-            }
-          });
-
-          if (appState.library.files.length > 0) {
-            appState.playlist.files = appState.library.files.slice();
-            appState.playlist.currentIndex = 0;
-          }
-
-          updateRecitersDropdown();
-          updateSurahsDropdown();
-          updateRecitersList();
-          updatePlaylistDisplay();
-
-          resolve();
-        };
-
-        request.onerror = () => {
-          console.error('Failed to load from DB', request.error);
-          reject(request.error);
-        };
-      });
+            request.onerror = () => {
+                console.error('Failed to load from DB', request.error);
+                reject(request.error);
+            };
+        });
     }
 
+    // DOM elements
     const elements = {
-      tabs: document.querySelectorAll('.tab'),
-      tabContents: document.querySelectorAll('.tab-content'),
-      audioFilesInput: document.getElementById('audioFiles'),
-      fileListPreview: document.getElementById('fileListPreview'),
-      reciterNameInput: document.getElementById('reciterName'),
-      surahNameInput: document.getElementById('surahName'),
-      uploadButton: document.getElementById('uploadButton'),
-      reciterSelect: document.getElementById('reciterSelect'),
-      surahSelect: document.getElementById('surahSelect'),
-      startVerseInput: document.getElementById('startVerse'),
-      endVerseInput: document.getElementById('endVerse'),
-      createPlaylistButton: document.getElementById('createPlaylistButton'),
-      recitersList: document.getElementById('recitersList'),
-      playlistRepeatsInput: document.getElementById('playlistRepeats'),
-      verseRepeatsInput: document.getElementById('verseRepeats'),
-      playlistFilesContainer: document.getElementById('playlistFiles'),
-      clearPlaylistButton: document.getElementById('clearPlaylistButton'),
-      playButton: document.getElementById('playButton'),
-      stopButton: document.getElementById('stopButton'),
-      prevButton: document.getElementById('prevButton'),
-      nextButton: document.getElementById('nextButton'),
-      progressBar: document.getElementById('progressBar'),
-      nowPlayingTitle: document.getElementById('nowPlayingTitle'),
-      playbackInfo: document.getElementById('playbackInfo'),
-      installBanner: document.getElementById('installBanner'),
-      dismissBanner: document.getElementById('dismissBanner'),
-      playlistCount: document.getElementById('playlistCount'),
-      clearLibraryButton: document.getElementById('clearLibraryButton')
+        tabs: document.querySelectorAll('.tab'),
+        tabContents: document.querySelectorAll('.tab-content'),
+        audioFilesInput: document.getElementById('audioFiles'),
+        fileListPreview: document.getElementById('fileListPreview'),
+        reciterNameInput: document.getElementById('reciterName'),
+        surahNameInput: document.getElementById('surahName'),
+        uploadButton: document.getElementById('uploadButton'),
+        reciterSelect: document.getElementById('reciterSelect'),
+        surahSelect: document.getElementById('surahSelect'),
+        startVerseInput: document.getElementById('startVerse'),
+        endVerseInput: document.getElementById('endVerse'),
+        createPlaylistButton: document.getElementById('createPlaylistButton'),
+        recitersList: document.getElementById('recitersList'),
+        playlistRepeatsInput: document.getElementById('playlistRepeats'),
+        verseRepeatsInput: document.getElementById('verseRepeats'),
+        playlistFilesContainer: document.getElementById('playlistFiles'),
+        clearPlaylistButton: document.getElementById('clearPlaylistButton'),
+        clearLibraryButton: document.getElementById('clearLibraryButton'), // New
+        playButton: document.getElementById('playButton'),
+        stopButton: document.getElementById('stopButton'),
+        prevButton: document.getElementById('prevButton'),
+        nextButton: document.getElementById('nextButton'),
+        progressBar: document.getElementById('progressBar'),
+        nowPlayingTitle: document.getElementById('nowPlayingTitle'),
+        playbackInfo: document.getElementById('playbackInfo'),
+        installBanner: document.getElementById('installBanner'),
+        dismissBanner: document.getElementById('dismissBanner'),
+        playlistCount: document.getElementById('playlistCount')
     };
 
+    // Initialize app
     document.addEventListener('DOMContentLoaded', async () => {
-      initEventListeners();
-      showInstallBannerIfNeeded();
-
-      if ('indexedDB' in window) {
-        try {
-          await initDB();
-          await loadLibraryFromDB();
-        } catch (e) {
-          console.warn('Running without persistent storage due to error:', e);
+        initEventListeners();
+        showInstallBannerIfNeeded();
+        if ('indexedDB' in window) {
+            try {
+                await initDB();
+                await loadLibraryFromDB();
+            } catch (e) {
+                console.warn('Running without persistent storage due to error:', e);
+            }
+        } else {
+            console.warn('IndexedDB not supported; uploads will not persist.');
         }
-      } else {
-        console.warn('IndexedDB not supported; uploads will not persist.');
-      }
     });
 
     function isRunningAsApp() {
-      return window.matchMedia('(display-mode: standalone)').matches ||
-             window.navigator.standalone ||
-             document.referrer.includes('android-app://');
+        return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone || document.referrer.includes('android-app://');
     }
 
     function showInstallBannerIfNeeded() {
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-      if (isIOS && !isRunningAsApp()) {
-        elements.installBanner.classList.add('show');
-      }
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        if (isIOS && !isRunningAsApp()) {
+            elements.installBanner.classList.add('show');
+        }
     }
 
     function initEventListeners() {
-      elements.tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-          const target = tab.dataset.tab;
-          elements.tabs.forEach(t => t.classList.remove('active'));
-          elements.tabContents.forEach(c => c.classList.remove('active'));
-          tab.classList.add('active');
-          document.getElementById(target + 'Content').classList.add('active');
+        // Tab switching
+        elements.tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const target = tab.dataset.tab;
+                elements.tabs.forEach(t => t.classList.remove('active'));
+                elements.tabContents.forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(target + 'Content').classList.add('active');
+            });
         });
-      });
 
-      elements.audioFilesInput.addEventListener('change', function() {
-        updateFilePreview(this.files);
-      });
+        elements.audioFilesInput.addEventListener('change', function() { updateFilePreview(this.files); });
+        elements.uploadButton.addEventListener('click', handleFileUpload);
+        elements.createPlaylistButton.addEventListener('click', createPlaylistFromRange);
 
-      elements.uploadButton.addEventListener('click', handleFileUpload);
+        elements.playButton.addEventListener('click', togglePlayback);
+        elements.stopButton.addEventListener('click', stopPlayback);
+        elements.prevButton.addEventListener('click', playPreviousTrack);
+        elements.nextButton.addEventListener('click', playNextTrack);
+        elements.clearPlaylistButton.addEventListener('click', clearPlaylist);
 
-      elements.createPlaylistButton.addEventListener('click', createPlaylistFromRange);
+        // New: Clear Entire Library listener
+        elements.clearLibraryButton.addEventListener('click', handleClearLibrary);
 
-      elements.playButton.addEventListener('click', togglePlayback);
-      elements.stopButton.addEventListener('click', stopPlayback);
-      elements.prevButton.addEventListener('click', playPreviousTrack);
-      elements.nextButton.addEventListener('click', playNextTrack);
-      elements.clearPlaylistButton.addEventListener('click', clearPlaylist);
+        appState.playback.audio.addEventListener('timeupdate', updateProgressBar);
+        appState.playback.audio.addEventListener('ended', handleTrackEnd);
 
-      elements.playlistRepeatsInput.addEventListener('change', function() {
-        appState.playlist.totalRepeats = parseInt(this.value) || 1;
-      });
+        elements.playlistRepeatsInput.addEventListener('change', function() {
+            appState.playlist.totalRepeats = parseInt(this.value) || 1;
+        });
+        elements.verseRepeatsInput.addEventListener('change', function() {
+            appState.playback.totalVerseRepeats = parseInt(this.value) || 1;
+        });
 
-      elements.verseRepeatsInput.addEventListener('change', function() {
-        appState.playback.totalVerseRepeats = parseInt(this.value) || 1;
-      });
+        elements.dismissBanner.addEventListener('click', function() {
+            elements.installBanner.classList.remove('show');
+        });
 
-      elements.dismissBanner.addEventListener('click', function() {
-        elements.installBanner.classList.remove('show');
-      });
+        // Updated: Handle file item clicks AND delete button clicks
+        elements.playlistFilesContainer.addEventListener('click', function(e) {
+            // Check if delete button was clicked
+            if (e.target.classList.contains('delete-btn')) {
+                const fileItem = e.target.closest('.file-item');
+                const index = Array.from(elements.playlistFilesContainer.children).indexOf(fileItem);
+                const fileObj = appState.playlist.files[index];
+                handleDeleteFile(fileObj.id, fileItem);
+                e.stopPropagation(); // Prevent playing the track
+                return;
+            }
 
-      elements.playlistFilesContainer.addEventListener('click', function(e) {
-        const fileItem = e.target.closest('.file-item');
-        if (fileItem) {
-          const index = Array.from(elements.playlistFilesContainer.children).indexOf(fileItem);
-          if (index >= 0) {
-            appState.playlist.currentIndex = index;
-            appState.playback.currentVerseRepeat = 0;
-            playCurrentTrack();
-          }
-        }
-      });
-
-      elements.clearLibraryButton.addEventListener('click', clearLibrary);
+            // Normal play click
+            const fileItem = e.target.closest('.file-item');
+            if (fileItem) {
+                const index = Array.from(elements.playlistFilesContainer.children).indexOf(fileItem);
+                if (index >= 0) {
+                    appState.playlist.currentIndex = index;
+                    appState.playback.currentVerseRepeat = 0;
+                    playCurrentTrack();
+                }
+            }
+        });
     }
 
     function updateFilePreview(files) {
-      if (files.length === 0) {
-        elements.fileListPreview.textContent = 'No files selected';
-        return;
-      }
-
-      let fileList = '';
-      for (let i = 0; i < files.length; i++) {
-        fileList += `• ${files[i].name}<br>`;
-      }
-      elements.fileListPreview.innerHTML = fileList;
+        if (files.length === 0) {
+            elements.fileListPreview.textContent = 'No files selected';
+            return;
+        }
+        let fileList = '';
+        for (let i = 0; i < files.length; i++) {
+            fileList += `• ${files[i].name}<br>`;
+        }
+        elements.fileListPreview.innerHTML = fileList;
     }
 
     function handleFileUpload() {
-      const files = elements.audioFilesInput.files;
-      if (files.length === 0) {
-        alert('Please select audio files first');
-        return;
-      }
-
-      const reciter = elements.reciterNameInput.value || 'Unknown Reciter';
-      const surah = elements.surahNameInput.value || 'Unknown Surah';
-
-      if (!appState.library.reciters[reciter]) {
-        appState.library.reciters[reciter] = [];
-      }
-      if (!appState.library.surahs[surah]) {
-        appState.library.surahs[surah] = [];
-      }
-
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const fileObj = {
-          id: generateUniqueId(),
-          file: file,
-          url: URL.createObjectURL(file),
-          name: file.name,
-          reciter: reciter,
-          surah: surah,
-          verse: extractVerseNumber(file.name)
-        };
-
-        appState.library.files.push(fileObj);
-        appState.library.reciters[reciter].push(fileObj);
-        appState.library.surahs[surah].push(fileObj);
-
-        appState.playlist.files.push(fileObj);
-
-        if (window.indexedDB) {
-          saveFileToDB(fileObj).catch(err => {
-            console.error('Error saving file to IndexedDB', err);
-          });
+        const files = elements.audioFilesInput.files;
+        if (files.length === 0) {
+            alert('Please select audio files first');
+            return;
         }
-      }
+        const reciter = elements.reciterNameInput.value || 'Unknown Reciter';
+        const surah = elements.surahNameInput.value || 'Unknown Surah';
 
-      updateRecitersDropdown();
-      updateSurahsDropdown();
-      updateRecitersList();
-      updatePlaylistDisplay();
+        if (!appState.library.reciters[reciter]) appState.library.reciters[reciter] = [];
+        if (!appState.library.surahs[surah]) appState.library.surahs[surah] = [];
 
-      alert(`Added ${files.length} files to your library and playlist!`);
-      elements.audioFilesInput.value = '';
-      elements.fileListPreview.textContent = 'No files selected';
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const fileObj = {
+                id: generateUniqueId(),
+                file: file,
+                url: URL.createObjectURL(file),
+                name: file.name,
+                reciter: reciter,
+                surah: surah,
+                verse: extractVerseNumber(file.name)
+            };
+
+            appState.library.files.push(fileObj);
+            appState.library.reciters[reciter].push(fileObj);
+            appState.library.surahs[surah].push(fileObj);
+            appState.playlist.files.push(fileObj);
+
+            if (window.indexedDB) {
+                saveFileToDB(fileObj).catch(err => console.error('Error saving file to IndexedDB', err));
+            }
+        }
+
+        updateRecitersDropdown();
+        updateSurahsDropdown();
+        updateRecitersList();
+        updatePlaylistDisplay();
+        alert(`Added ${files.length} files to your library and playlist!`);
+        elements.audioFilesInput.value = '';
+        elements.fileListPreview.textContent = 'No files selected';
+    }
+
+    // Logic to Delete a Specific File
+    async function handleDeleteFile(id, domElement) {
+        if (!confirm('Permanently delete this file from your library? This cannot be undone.')) return;
+
+        // Stop playback if deleting current track
+        const isPlayingCurrent = appState.playlist.files[appState.playlist.currentIndex]?.id === id;
+        if (isPlayingCurrent) {
+            stopPlayback();
+        }
+
+        // 1. Remove from DB
+        try {
+            await deleteFileFromDB(id);
+        } catch (e) {
+            console.error('Error deleting from DB', e);
+            alert('Error deleting file');
+            return;
+        }
+
+        // 2. Remove from global State (Library and Playlist)
+        const fileIndexLib = appState.library.files.findIndex(f => f.id === id);
+        if (fileIndexLib > -1) {
+            const f = appState.library.files[fileIndexLib];
+            // Remove from reciters map
+            if (appState.library.reciters[f.reciter]) {
+                appState.library.reciters[f.reciter] = appState.library.reciters[f.reciter].filter(x => x.id !== id);
+                if (appState.library.reciters[f.reciter].length === 0) delete appState.library.reciters[f.reciter];
+            }
+            // Remove from surahs map
+            if (appState.library.surahs[f.surah]) {
+                appState.library.surahs[f.surah] = appState.library.surahs[f.surah].filter(x => x.id !== id);
+                if (appState.library.surahs[f.surah].length === 0) delete appState.library.surahs[f.surah];
+            }
+            appState.library.files.splice(fileIndexLib, 1);
+        }
+
+        const fileIndexPlaylist = appState.playlist.files.findIndex(f => f.id === id);
+        if (fileIndexPlaylist > -1) {
+            appState.playlist.files.splice(fileIndexPlaylist, 1);
+        }
+
+        // 3. Update UI
+        updateRecitersDropdown();
+        updateSurahsDropdown();
+        updateRecitersList();
+        updatePlaylistDisplay();
+    }
+
+    // Logic to Clear Entire Library
+    async function handleClearLibrary() {
+        if (!confirm('WARNING: This will delete ALL audio files and data. Are you sure?')) return;
+
+        stopPlayback();
+
+        try {
+            await clearAllFromDB();
+        } catch (e) {
+            console.error('Error clearing DB', e);
+            alert('Error clearing database');
+            return;
+        }
+
+        // Reset State
+        appState.library.files = [];
+        appState.library.reciters = {};
+        appState.library.surahs = {};
+        appState.playlist.files = [];
+        appState.playlist.currentIndex = 0;
+
+        // Update UI
+        updateRecitersDropdown();
+        updateSurahsDropdown();
+        updateRecitersList();
+        updatePlaylistDisplay();
+        alert('Library cleared successfully.');
     }
 
     function generateUniqueId() {
-      return Math.random().toString(36).substring(2, 15) +
-             Math.random().toString(36).substring(2, 15);
+        return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
     }
 
     function extractVerseNumber(filename) {
-      const matches = filename.match(/\d+/);
-      if (!matches) return null;
-      return parseInt(matches[0], 10);
+        const matches = filename.match(/\d+/);
+        if (!matches) return null;
+        return parseInt(matches[0], 10);
     }
 
     function updateRecitersDropdown() {
-      const reciters = Object.keys(appState.library.reciters);
-      elements.reciterSelect.innerHTML = '<option value="">All Reciters</option>';
-
-      reciters.forEach(reciter => {
-        const option = document.createElement('option');
-        option.value = reciter;
-        option.textContent = reciter;
-        elements.reciterSelect.appendChild(option);
-      });
+        const reciters = Object.keys(appState.library.reciters);
+        elements.reciterSelect.innerHTML = '<option value="">All Reciters</option>';
+        reciters.forEach(reciter => {
+            const option = document.createElement('option');
+            option.value = reciter;
+            option.textContent = reciter;
+            elements.reciterSelect.appendChild(option);
+        });
     }
 
     function updateSurahsDropdown() {
-      const surahs = Object.keys(appState.library.surahs);
-      elements.surahSelect.innerHTML = '<option value="">All Surahs</option>';
-
-      surahs.forEach(surah => {
-        const option = document.createElement('option');
-        option.value = surah;
-        option.textContent = surah;
-        elements.surahSelect.appendChild(option);
-      });
+        const surahs = Object.keys(appState.library.surahs);
+        elements.surahSelect.innerHTML = '<option value="">All Surahs</option>';
+        surahs.forEach(surah => {
+            const option = document.createElement('option');
+            option.value = surah;
+            option.textContent = surah;
+            elements.surahSelect.appendChild(option);
+        });
     }
 
     function updateRecitersList() {
-      const reciters = Object.keys(appState.library.reciters);
+        const reciters = Object.keys(appState.library.reciters);
+        if (reciters.length === 0) {
+            elements.recitersList.innerHTML = '<p>No reciters added yet. Upload files first.</p>';
+            return;
+        }
+        let html = '';
+        reciters.forEach(reciter => {
+            const reciterFiles = appState.library.reciters[reciter];
+            html += `<div class="reciter-section">
+                <div class="reciter-header">
+                    <strong>${reciter}</strong> (${reciterFiles.length} files)
+                </div>
+                <div class="reciter-content">`;
 
-      if (reciters.length === 0) {
-        elements.recitersList.innerHTML = '<p>No reciters added yet. Upload files first.</p>';
-        return;
-      }
+            const surahMap = {};
+            reciterFiles.forEach(file => {
+                if (!surahMap[file.surah]) surahMap[file.surah] = [];
+                surahMap[file.surah].push(file);
+            });
 
-      let html = '';
-
-      reciters.forEach(reciter => {
-        const reciterFiles = appState.library.reciters[reciter];
-
-        html += `
-          <div class="reciter-section">
-            <div class="reciter-header">
-              <strong>${reciter}</strong> (${reciterFiles.length} files)
-            </div>
-            <div class="reciter-content">
-        `;
-
-        const surahMap = {};
-        reciterFiles.forEach(file => {
-          if (!surahMap[file.surah]) {
-            surahMap[file.surah] = [];
-          }
-          surahMap[file.surah].push(file);
+            Object.keys(surahMap).forEach(surah => {
+                html += `<p>${surah}: ${surahMap[surah].length} verses</p>`;
+            });
+            html += `</div></div>`;
         });
-
-        Object.keys(surahMap).forEach(surah => {
-          html += `<p>${surah}: ${surahMap[surah].length} verses</p>`;
-        });
-
-        html += `
-            </div>
-          </div>
-        `;
-      });
-
-      elements.recitersList.innerHTML = html;
+        elements.recitersList.innerHTML = html;
     }
 
     function updatePlaylistDisplay() {
-      elements.playlistFilesContainer.innerHTML = '';
+        elements.playlistFilesContainer.innerHTML = '';
+        if (appState.playlist.files.length === 0) {
+            elements.playlistFilesContainer.innerHTML = '<li class="file-item"><span>No tracks in playlist</span></li>';
+            elements.playlistCount.textContent = '0';
+            return;
+        }
 
-      if (appState.playlist.files.length === 0) {
-        elements.playlistFilesContainer.innerHTML = '<li class="file-item"><span>No tracks in playlist</span></li>';
-        elements.playlistCount.textContent = '0';
-        return;
-      }
+        appState.playlist.files.forEach((file, index) => {
+            const li = document.createElement('li');
+            li.className = 'file-item' + (index === appState.playlist.currentIndex ? ' active' : '');
 
-      appState.playlist.files.forEach((file, index) => {
-        const li = document.createElement('li');
-        li.className = 'file-item' + (index === appState.playlist.currentIndex ? ' active' : '');
+            // Build the row
+            const main = document.createElement('div');
+            main.className = 'file-main';
 
-        const main = document.createElement('div');
-        main.className = 'file-main';
+            const titleRow = document.createElement('div');
+            titleRow.style.display = 'flex';
+            titleRow.style.alignItems = 'center';
 
-        const titleRow = document.createElement('div');
-        titleRow.style.display = 'flex';
-        titleRow.style.alignItems = 'center';
+            const indexSpan = document.createElement('span');
+            indexSpan.className = 'file-index';
+            indexSpan.textContent = index + 1;
 
-        const indexSpan = document.createElement('span');
-        indexSpan.className = 'file-index';
-        indexSpan.textContent = index + 1;
+            const titleSpan = document.createElement('span');
+            titleSpan.className = 'file-title';
+            titleSpan.textContent = file.name;
 
-        const titleSpan = document.createElement('span');
-        titleSpan.className = 'file-title';
-        titleSpan.textContent = file.name;
+            titleRow.appendChild(indexSpan);
+            titleRow.appendChild(titleSpan);
 
-        titleRow.appendChild(indexSpan);
-        titleRow.appendChild(titleSpan);
+            const metaSpan = document.createElement('div');
+            metaSpan.className = 'file-meta';
+            metaSpan.innerHTML = `<span>${file.reciter || 'Unknown Reciter'}</span> · <span>${file.surah || 'Unknown Surah'}</span> ${file.verse ? `· <span>Verse ${file.verse}</span>` : ''}`;
 
-        const metaSpan = document.createElement('div');
-        metaSpan.className = 'file-meta';
-        metaSpan.innerHTML = `
-          <span>${file.reciter || 'Unknown Reciter'}</span> ·
-          <span>${file.surah || 'Unknown Surah'}</span>
-          ${file.verse ? ` · <span>Verse ${file.verse}</span>` : ''}
-        `;
+            main.appendChild(titleRow);
+            main.appendChild(metaSpan);
 
-        main.appendChild(titleRow);
-        main.appendChild(metaSpan);
+            // Delete Button
+            const delBtn = document.createElement('button');
+            delBtn.innerHTML = '🗑️';
+            delBtn.className = 'delete-btn';
+            delBtn.title = 'Delete from library';
 
-        li.appendChild(main);
-        elements.playlistFilesContainer.appendChild(li);
-      });
+            li.appendChild(main);
+            li.appendChild(delBtn); // Add delete button to row
 
-      elements.playlistCount.textContent = appState.playlist.files.length.toString();
+            elements.playlistFilesContainer.appendChild(li);
+        });
+        elements.playlistCount.textContent = appState.playlist.files.length.toString();
     }
 
     function createPlaylistFromRange() {
-      const startVerse = parseInt(elements.startVerseInput.value);
-      const endVerse = parseInt(elements.endVerseInput.value);
-      const reciter = elements.reciterSelect.value;
-      const surah = elements.surahSelect.value;
+        const startVerse = parseInt(elements.startVerseInput.value);
+        const endVerse = parseInt(elements.endVerseInput.value);
+        const reciter = elements.reciterSelect.value;
+        const surah = elements.surahSelect.value;
 
-      if (isNaN(startVerse) || isNaN(endVerse)) {
-        alert('Please enter valid verse numbers');
-        return;
-      }
+        if (isNaN(startVerse) || isNaN(endVerse)) {
+            alert('Please enter valid verse numbers');
+            return;
+        }
+        if (endVerse < startVerse) {
+            alert('End verse must be greater than or equal to start verse');
+            return;
+        }
 
-      if (endVerse < startVerse) {
-        alert('End verse must be greater than or equal to start verse');
-        return;
-      }
+        let filteredFiles = appState.library.files.filter(file => {
+            if (reciter && file.reciter !== reciter) return false;
+            if (surah && file.surah !== surah) return false;
+            if (file.verse && (file.verse < startVerse || file.verse > endVerse)) return false;
+            return true;
+        });
 
-      let filteredFiles = appState.library.files.filter(file => {
-        if (reciter && file.reciter !== reciter) return false;
-        if (surah && file.surah !== surah) return false;
-        if (file.verse && (file.verse < startVerse || file.verse > endVerse)) return false;
-        return true;
-      });
+        filteredFiles.sort((a, b) => {
+            if (a.verse && b.verse) return a.verse - b.verse;
+            return a.name.localeCompare(b.name);
+        });
 
-      filteredFiles.sort((a, b) => {
-        if (a.verse && b.verse) return a.verse - b.verse;
-        return a.name.localeCompare(b.name);
-      });
+        if (filteredFiles.length === 0) {
+            alert('No matching verses found in your library');
+            return;
+        }
 
-      if (filteredFiles.length === 0) {
-        alert('No matching verses found in your library');
-        return;
-      }
-
-      appState.playlist.files = filteredFiles;
-      appState.playlist.currentIndex = 0;
-      appState.playback.currentVerseRepeat = 0;
-      appState.playlist.playlistRepeatCount = 0;
-
-      updatePlaylistDisplay();
-      alert(`Created playlist with ${filteredFiles.length} verses`);
+        appState.playlist.files = filteredFiles;
+        appState.playlist.currentIndex = 0;
+        appState.playback.currentVerseRepeat = 0;
+        appState.playlist.playlistRepeatCount = 0;
+        updatePlaylistDisplay();
+        alert(`Created playlist with ${filteredFiles.length} verses`);
     }
 
     function togglePlayback() {
-      if (appState.playback.isPlaying) {
-        pausePlayback();
-      } else {
-        startPlayback();
-      }
+        if (appState.playback.isPlaying) pausePlayback();
+        else startPlayback();
     }
 
     function startPlayback() {
-      if (appState.playlist.files.length === 0) {
-        alert('Please add files to your playlist first');
-        return;
-      }
-
-      if (!appState.playback.isPlaying) {
-        playCurrentTrack();
-      }
+        if (appState.playlist.files.length === 0) {
+            alert('Please add files to your playlist first');
+            return;
+        }
+        if (!appState.playback.isPlaying) playCurrentTrack();
     }
 
     function pausePlayback() {
-      appState.playback.isPlaying = false;
-      appState.playback.audio.pause();
-      elements.playButton.textContent = '▶';
+        appState.playback.isPlaying = false;
+        appState.playback.audio.pause();
+        elements.playButton.textContent = '▶';
     }
 
     function stopPlayback() {
-      pausePlayback();
-      appState.playback.audio.currentTime = 0;
+        pausePlayback();
+        appState.playback.audio.currentTime = 0;
+        elements.stopButton.disabled = true;
     }
 
     function playCurrentTrack() {
-      if (appState.playlist.files.length === 0) return;
+        const file = appState.playlist.files[appState.playlist.currentIndex];
+        if (!file) return;
 
-      const currentFile = appState.playlist.files[appState.playlist.currentIndex];
-      if (!currentFile) return;
-
-      appState.playback.audio.src = currentFile.url;
-      appState.playback.audio.currentTime = 0;
-
-      appState.playback.isPlaying = true;
-      appState.playback.audio.play();
-
-      elements.playButton.textContent = '⏸';
-      elements.stopButton.disabled = false;
-      elements.nowPlayingTitle.textContent = `${currentFile.reciter || 'Unknown Reciter'} — ${currentFile.surah || 'Unknown Surah'} ${currentFile.verse ? `(Verse ${currentFile.verse})` : ''}`;
-      updatePlaybackInfo();
-      updatePlaylistDisplay();
-    }
-
-    function updatePlaybackInfo() {
-      const currentFile = appState.playlist.files[appState.playlist.currentIndex];
-      if (!currentFile) {
-        elements.playbackInfo.textContent = '—';
-        return;
-      }
-
-      let info = `Repeat ${appState.playback.currentVerseRepeat + 1}/${appState.playback.totalVerseRepeats}`;
-      if (appState.playlist.totalRepeats > 1) {
-        info += ` • Playlist ${appState.playlist.playlistRepeatCount + 1}/${appState.playlist.totalRepeats}`;
-      }
-
-      elements.playbackInfo.textContent = info;
+        appState.playback.audio.src = file.url;
+        appState.playback.audio.play()
+            .then(() => {
+                appState.playback.isPlaying = true;
+                elements.playButton.textContent = '⏸';
+                elements.stopButton.disabled = false;
+                elements.nowPlayingTitle.textContent = file.name;
+                elements.playbackInfo.textContent = `${file.reciter} - ${file.surah}`;
+                updatePlaylistDisplay();
+            })
+            .catch(e => console.error('Playback error:', e));
     }
 
     function playPreviousTrack() {
-      if (appState.playlist.files.length === 0) return;
-
-      if (appState.playback.audio.currentTime > 2) {
-        appState.playback.audio.currentTime = 0;
-        return;
-      }
-
-      appState.playlist.currentIndex = (appState.playlist.currentIndex - 1 + appState.playlist.files.length) % appState.playlist.files.length;
-      appState.playback.currentVerseRepeat = 0;
-      playCurrentTrack();
+        if (appState.playlist.currentIndex > 0) {
+            appState.playlist.currentIndex--;
+            appState.playback.currentVerseRepeat = 0;
+            playCurrentTrack();
+        }
     }
 
     function playNextTrack() {
-      if (appState.playlist.files.length === 0) return;
-
-      appState.playlist.currentIndex = (appState.playlist.currentIndex + 1) % appState.playlist.files.length;
-      appState.playback.currentVerseRepeat = 0;
-      playCurrentTrack();
+        if (appState.playlist.currentIndex < appState.playlist.files.length - 1) {
+            appState.playlist.currentIndex++;
+            appState.playback.currentVerseRepeat = 0;
+            playCurrentTrack();
+        } else {
+            // End of playlist
+            if (appState.playlist.playlistRepeatCount < appState.playlist.totalRepeats - 1) {
+                appState.playlist.playlistRepeatCount++;
+                appState.playlist.currentIndex = 0;
+                appState.playback.currentVerseRepeat = 0;
+                playCurrentTrack();
+            } else {
+                stopPlayback();
+            }
+        }
     }
 
     function handleTrackEnd() {
-      if (!appState.playback.isPlaying) return;
-
-      appState.playback.currentVerseRepeat++;
-
-      if (appState.playback.currentVerseRepeat < appState.playback.totalVerseRepeats) {
-        updatePlaybackInfo();
-        appState.playback.audio.currentTime = 0;
-        appState.playback.audio.play();
-        return;
-      }
-
-      appState.playback.currentVerseRepeat = 0;
-      appState.playlist.currentIndex++;
-
-      if (appState.playlist.currentIndex >= appState.playlist.files.length) {
-        appState.playlist.playlistRepeatCount++;
-
-        if (appState.playlist.playlistRepeatCount < appState.playlist.totalRepeats) {
-          appState.playlist.currentIndex = 0;
-          playCurrentTrack();
+        // Verse repeat logic
+        if (appState.playback.currentVerseRepeat < appState.playback.totalVerseRepeats - 1) {
+            appState.playback.currentVerseRepeat++;
+            appState.playback.audio.currentTime = 0;
+            appState.playback.audio.play();
         } else {
-          appState.playlist.currentIndex = 0;
-          appState.playlist.playlistRepeatCount = 0;
-          appState.playback.isPlaying = false;
-          elements.playButton.textContent = '▶';
-          elements.stopButton.disabled = true;
-          appState.playback.audio.currentTime = 0;
-          updatePlaybackInfo();
-          updatePlaylistDisplay();
+            playNextTrack();
         }
-      } else {
-        playCurrentTrack();
-      }
     }
 
     function updateProgressBar() {
-      if (!appState.playback.isPlaying) return;
-      if (!appState.playback.audio.duration) {
-        elements.progressBar.style.width = '0%';
-        return;
-      }
-      const percent = (appState.playback.audio.currentTime / appState.playback.audio.duration) * 100;
-      elements.progressBar.style.width = `${percent}%`;
+        const duration = appState.playback.audio.duration;
+        const currentTime = appState.playback.audio.currentTime;
+        if (duration) {
+            const percent = (currentTime / duration) * 100;
+            elements.progressBar.style.width = percent + '%';
+        }
     }
 
     function clearPlaylist() {
-      if (confirm('Are you sure you want to clear the current playlist?')) {
-        stopPlayback();
         appState.playlist.files = [];
         appState.playlist.currentIndex = 0;
-        appState.playlist.playlistRepeatCount = 0;
+        stopPlayback();
         updatePlaylistDisplay();
-      }
+        elements.nowPlayingTitle.textContent = "No track selected";
     }
 
-    function clearLibrary() {
-      if (!confirm('This will remove all uploaded recitations from the app (library and playlists). This cannot be undone. Continue?')) {
-        return;
-      }
-
-      stopPlayback();
-
-      appState.library.files.forEach(f => {
-        if (f.url) {
-          URL.revokeObjectURL(f.url);
-        }
-      });
-
-      appState.library.files = [];
-      appState.library.reciters = {};
-      appState.library.surahs = {};
-
-      appState.playlist.files = [];
-      appState.playlist.currentIndex = 0;
-      appState.playlist.playlistRepeatCount = 0;
-      appState.playback.currentVerseRepeat = 0;
-      appState.playback.isPlaying = false;
-      appState.playback.audio.src = '';
-
-      elements.nowPlayingTitle.textContent = 'No track selected';
-      elements.playbackInfo.textContent = '—';
-      elements.progressBar.style.width = '0%';
-      elements.playButton.textContent = '▶';
-      elements.stopButton.disabled = true;
-
-      updateRecitersDropdown();
-      updateSurahsDropdown();
-      updateRecitersList();
-      updatePlaylistDisplay();
-
-      if (db) {
-        const tx = db.transaction(FILE_STORE, 'readwrite');
-        const store = tx.objectStore(FILE_STORE);
-        store.clear();
-        tx.oncomplete = () => {
-          console.log('Library cleared from IndexedDB');
-        };
-        tx.onerror = () => {
-          console.error('Failed to clear library from IndexedDB', tx.error);
-        };
-      }
-
-      alert('Library cleared. All uploaded files have been removed from this device.');
-    }
-
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('service-worker.js')
-          .then(registration => {
-            console.log('ServiceWorker registration successful');
-          })
-          .catch(error => {
-            console.log('ServiceWorker registration failed: ', error);
-          });
-      });
-    }
-
-    appState.playback.audio.addEventListener('timeupdate', updateProgressBar);
-    appState.playback.audio.addEventListener('ended', handleTrackEnd);
-  </script>
+</script>
 </body>
 </html>

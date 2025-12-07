@@ -529,7 +529,7 @@
                         </div>
                     </div>
                     <ul id="playlistFiles" class="playlist-list">
-                        </ul>
+                    </ul>
                 </div>
             </div>
         </div>
@@ -721,7 +721,7 @@
         verseRepeatsInput: document.getElementById('verseRepeats'),
         playlistFilesContainer: document.getElementById('playlistFiles'),
         clearPlaylistButton: document.getElementById('clearPlaylistButton'),
-        clearLibraryButton: document.getElementById('clearLibraryButton'), // New
+        clearLibraryButton: document.getElementById('clearLibraryButton'),
         playButton: document.getElementById('playButton'),
         stopButton: document.getElementById('stopButton'),
         prevButton: document.getElementById('prevButton'),
@@ -783,11 +783,36 @@
         elements.nextButton.addEventListener('click', playNextTrack);
         elements.clearPlaylistButton.addEventListener('click', clearPlaylist);
 
-        // New: Clear Entire Library listener
+        // Clear Entire Library listener
         elements.clearLibraryButton.addEventListener('click', handleClearLibrary);
 
-        appState.playback.audio.addEventListener('timeupdate', updateProgressBar);
-        appState.playback.audio.addEventListener('ended', handleTrackEnd);
+        const audio = appState.playback.audio;
+
+        audio.addEventListener('timeupdate', updateProgressBar);
+        audio.addEventListener('ended', handleTrackEnd);
+
+        // *** CHANGED: keep UI & isPlaying in sync with real audio state ***
+        audio.addEventListener('play', () => {
+            appState.playback.isPlaying = true;
+            elements.playButton.textContent = '⏸';
+            elements.stopButton.disabled = false;
+        });
+
+        audio.addEventListener('pause', () => {
+            appState.playback.isPlaying = false;
+            elements.playButton.textContent = '▶';
+        });
+
+        // *** OPTIONAL: try to resume if we "thought" it was playing when tab becomes visible ***
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                if (appState.playback.isPlaying && audio.paused && audio.src) {
+                    audio.play().catch(() => {
+                        // User may have to tap play once; ignore errors here.
+                    });
+                }
+            }
+        });
 
         elements.playlistRepeatsInput.addEventListener('change', function() {
             appState.playlist.totalRepeats = parseInt(this.value) || 1;
@@ -800,7 +825,7 @@
             elements.installBanner.classList.remove('show');
         });
 
-        // Updated: Handle file item clicks AND delete button clicks
+        // Handle file item clicks AND delete button clicks
         elements.playlistFilesContainer.addEventListener('click', function(e) {
             // Check if delete button was clicked
             if (e.target.classList.contains('delete-btn')) {
@@ -1110,9 +1135,21 @@
         alert(`Created playlist with ${filteredFiles.length} verses`);
     }
 
+    // *** CHANGED: use audio.paused as the source of truth ***
     function togglePlayback() {
-        if (appState.playback.isPlaying) pausePlayback();
-        else startPlayback();
+        const audio = appState.playback.audio;
+
+        // If there's no current source, start normal playback
+        if (!audio.src) {
+            startPlayback();
+            return;
+        }
+
+        if (audio.paused) {
+            audio.play().catch(e => console.error('Playback error:', e));
+        } else {
+            pausePlayback();
+        }
     }
 
     function startPlayback() {
@@ -1120,13 +1157,14 @@
             alert('Please add files to your playlist first');
             return;
         }
-        if (!appState.playback.isPlaying) playCurrentTrack();
+        if (!appState.playback.isPlaying) {
+            playCurrentTrack();
+        }
     }
 
+    // *** CHANGED: let the 'pause' event update state & button ***
     function pausePlayback() {
-        appState.playback.isPlaying = false;
         appState.playback.audio.pause();
-        elements.playButton.textContent = '▶';
     }
 
     function stopPlayback() {
@@ -1135,16 +1173,21 @@
         elements.stopButton.disabled = true;
     }
 
+    // *** CHANGED: only reset src if needed, don't always restart ***
     function playCurrentTrack() {
         const file = appState.playlist.files[appState.playlist.currentIndex];
         if (!file) return;
 
-        appState.playback.audio.src = file.url;
-        appState.playback.audio.play()
+        const audio = appState.playback.audio;
+
+        // Only change src when switching tracks
+        if (audio.src !== file.url) {
+            audio.src = file.url;
+            audio.currentTime = 0;
+        }
+
+        audio.play()
             .then(() => {
-                appState.playback.isPlaying = true;
-                elements.playButton.textContent = '⏸';
-                elements.stopButton.disabled = false;
                 elements.nowPlayingTitle.textContent = file.name;
                 elements.playbackInfo.textContent = `${file.reciter} - ${file.surah}`;
                 updatePlaylistDisplay();
@@ -1185,6 +1228,7 @@
             appState.playback.audio.currentTime = 0;
             appState.playback.audio.play();
         } else {
+            appState.playback.currentVerseRepeat = 0;
             playNextTrack();
         }
     }
@@ -1204,6 +1248,7 @@
         stopPlayback();
         updatePlaylistDisplay();
         elements.nowPlayingTitle.textContent = "No track selected";
+        elements.playbackInfo.textContent = "—";
     }
 
 </script>

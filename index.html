@@ -162,7 +162,6 @@
             border-radius: 6px; max-height: 100px; overflow-y: auto;
         }
 
-        /* Buttons */
         .btn {
             display: inline-flex; align-items: center; justify-content: center;
             padding: 8px 12px; border-radius: 999px; border: none;
@@ -205,7 +204,6 @@
         }
         .btn-icon:disabled { opacity: 0.4; cursor: default; }
 
-        /* Settings cards */
         .settings-row {
             display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 8px;
         }
@@ -217,7 +215,6 @@
         }
         .setting-box h3 { margin: 0 0 6px; font-size: 13px; color: #e5e7eb; }
 
-        /* Playlist and player */
         .player-section {
             display: grid; grid-template-columns: minmax(0, 36%) minmax(0, 64%); gap: 12px;
         }
@@ -292,12 +289,10 @@
         }
         .delete-btn:hover { opacity: 1; transform: scale(1.1); }
 
-        /* Reciter Organization */
         .reciter-section { margin-bottom: 20px; }
         .reciter-header { padding: 12px; background-color: var(--light-color); border-radius: 6px; font-weight: 500; margin-bottom: 10px; cursor: pointer; }
         .reciter-content { padding-left: 15px; }
 
-        /* Alerts */
         .alert { padding: 12px 15px; border-radius: 6px; margin-bottom: 15px; display: flex; align-items: center; gap: 10px; }
         .alert-info { background-color: var(--accent-color); color: var(--primary-color); }
         .alert-success { background-color: #d1fae5; color: #047857; }
@@ -528,8 +523,7 @@
                             </button>
                         </div>
                     </div>
-                    <ul id="playlistFiles" class="playlist-list">
-                    </ul>
+                    <ul id="playlistFiles" class="playlist-list"></ul>
                 </div>
             </div>
         </div>
@@ -619,25 +613,23 @@
         });
     }
 
-    // New Function: Delete specific file from DB
     function deleteFileFromDB(id) {
         return new Promise((resolve, reject) => {
             if (!db) return resolve();
             const tx = db.transaction(FILE_STORE, 'readwrite');
             const store = tx.objectStore(FILE_STORE);
-            const request = store.delete(id);
+            store.delete(id);
             tx.oncomplete = () => resolve();
             tx.onerror = () => reject(tx.error);
         });
     }
 
-    // New Function: Clear entire DB
     function clearAllFromDB() {
         return new Promise((resolve, reject) => {
             if (!db) return resolve();
             const tx = db.transaction(FILE_STORE, 'readwrite');
             const store = tx.objectStore(FILE_STORE);
-            const request = store.clear();
+            store.clear();
             tx.oncomplete = () => resolve();
             tx.onerror = () => reject(tx.error);
         });
@@ -665,7 +657,6 @@
                         verse: rec.verse
                     };
 
-                    // Add to library
                     appState.library.files.push(fileObj);
 
                     if (fileObj.reciter) {
@@ -682,13 +673,11 @@
                     }
                 });
 
-                // Default playlist: all files
                 if (appState.library.files.length > 0) {
                     appState.playlist.files = appState.library.files.slice();
                     appState.playlist.currentIndex = 0;
                 }
 
-                // Refresh UI
                 updateRecitersDropdown();
                 updateSurahsDropdown();
                 updateRecitersList();
@@ -702,7 +691,6 @@
         });
     }
 
-    // DOM elements
     const elements = {
         tabs: document.querySelectorAll('.tab'),
         tabContents: document.querySelectorAll('.tab-content'),
@@ -734,7 +722,6 @@
         playlistCount: document.getElementById('playlistCount')
     };
 
-    // Initialize app
     document.addEventListener('DOMContentLoaded', async () => {
         initEventListeners();
         showInstallBannerIfNeeded();
@@ -762,7 +749,6 @@
     }
 
     function initEventListeners() {
-        // Tab switching
         elements.tabs.forEach(tab => {
             tab.addEventListener('click', () => {
                 const target = tab.dataset.tab;
@@ -782,16 +768,18 @@
         elements.prevButton.addEventListener('click', playPreviousTrack);
         elements.nextButton.addEventListener('click', playNextTrack);
         elements.clearPlaylistButton.addEventListener('click', clearPlaylist);
-
-        // Clear Entire Library listener
         elements.clearLibraryButton.addEventListener('click', handleClearLibrary);
+
+        // NEW: when reciter changes, update Surah list to only Surahs for that reciter
+        elements.reciterSelect.addEventListener('change', () => {
+            updateSurahsDropdown();
+        });
 
         const audio = appState.playback.audio;
 
         audio.addEventListener('timeupdate', updateProgressBar);
         audio.addEventListener('ended', handleTrackEnd);
 
-        // *** CHANGED: keep UI & isPlaying in sync with real audio state ***
         audio.addEventListener('play', () => {
             appState.playback.isPlaying = true;
             elements.playButton.textContent = '⏸';
@@ -803,13 +791,10 @@
             elements.playButton.textContent = '▶';
         });
 
-        // *** OPTIONAL: try to resume if we "thought" it was playing when tab becomes visible ***
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') {
                 if (appState.playback.isPlaying && audio.paused && audio.src) {
-                    audio.play().catch(() => {
-                        // User may have to tap play once; ignore errors here.
-                    });
+                    audio.play().catch(() => {});
                 }
             }
         });
@@ -825,19 +810,16 @@
             elements.installBanner.classList.remove('show');
         });
 
-        // Handle file item clicks AND delete button clicks
         elements.playlistFilesContainer.addEventListener('click', function(e) {
-            // Check if delete button was clicked
             if (e.target.classList.contains('delete-btn')) {
                 const fileItem = e.target.closest('.file-item');
                 const index = Array.from(elements.playlistFilesContainer.children).indexOf(fileItem);
                 const fileObj = appState.playlist.files[index];
                 handleDeleteFile(fileObj.id, fileItem);
-                e.stopPropagation(); // Prevent playing the track
+                e.stopPropagation();
                 return;
             }
 
-            // Normal play click
             const fileItem = e.target.closest('.file-item');
             if (fileItem) {
                 const index = Array.from(elements.playlistFilesContainer.children).indexOf(fileItem);
@@ -905,17 +887,14 @@
         elements.fileListPreview.textContent = 'No files selected';
     }
 
-    // Logic to Delete a Specific File
-    async function handleDeleteFile(id, domElement) {
+    async function handleDeleteFile(id) {
         if (!confirm('Permanently delete this file from your library? This cannot be undone.')) return;
 
-        // Stop playback if deleting current track
         const isPlayingCurrent = appState.playlist.files[appState.playlist.currentIndex]?.id === id;
         if (isPlayingCurrent) {
             stopPlayback();
         }
 
-        // 1. Remove from DB
         try {
             await deleteFileFromDB(id);
         } catch (e) {
@@ -924,16 +903,13 @@
             return;
         }
 
-        // 2. Remove from global State (Library and Playlist)
         const fileIndexLib = appState.library.files.findIndex(f => f.id === id);
         if (fileIndexLib > -1) {
             const f = appState.library.files[fileIndexLib];
-            // Remove from reciters map
             if (appState.library.reciters[f.reciter]) {
                 appState.library.reciters[f.reciter] = appState.library.reciters[f.reciter].filter(x => x.id !== id);
                 if (appState.library.reciters[f.reciter].length === 0) delete appState.library.reciters[f.reciter];
             }
-            // Remove from surahs map
             if (appState.library.surahs[f.surah]) {
                 appState.library.surahs[f.surah] = appState.library.surahs[f.surah].filter(x => x.id !== id);
                 if (appState.library.surahs[f.surah].length === 0) delete appState.library.surahs[f.surah];
@@ -946,14 +922,12 @@
             appState.playlist.files.splice(fileIndexPlaylist, 1);
         }
 
-        // 3. Update UI
         updateRecitersDropdown();
         updateSurahsDropdown();
         updateRecitersList();
         updatePlaylistDisplay();
     }
 
-    // Logic to Clear Entire Library
     async function handleClearLibrary() {
         if (!confirm('WARNING: This will delete ALL audio files and data. Are you sure?')) return;
 
@@ -967,14 +941,12 @@
             return;
         }
 
-        // Reset State
         appState.library.files = [];
         appState.library.reciters = {};
         appState.library.surahs = {};
         appState.playlist.files = [];
         appState.playlist.currentIndex = 0;
 
-        // Update UI
         updateRecitersDropdown();
         updateSurahsDropdown();
         updateRecitersList();
@@ -993,7 +965,7 @@
     }
 
     function updateRecitersDropdown() {
-        const reciters = Object.keys(appState.library.reciters);
+        const reciters = Object.keys(appState.library.reciters).sort();
         elements.reciterSelect.innerHTML = '<option value="">All Reciters</option>';
         reciters.forEach(reciter => {
             const option = document.createElement('option');
@@ -1003,15 +975,26 @@
         });
     }
 
+    // FIXED: Surah list now depends on selected reciter
     function updateSurahsDropdown() {
-        const surahs = Object.keys(appState.library.surahs);
-        elements.surahSelect.innerHTML = '<option value="">All Surahs</option>';
-        surahs.forEach(surah => {
-            const option = document.createElement('option');
-            option.value = surah;
-            option.textContent = surah;
-            elements.surahSelect.appendChild(option);
+        const reciterFilter = elements.reciterSelect.value;
+        const surahSet = new Set();
+
+        appState.library.files.forEach(file => {
+            if (reciterFilter && file.reciter !== reciterFilter) return;
+            if (file.surah) surahSet.add(file.surah);
         });
+
+        elements.surahSelect.innerHTML = '<option value="">All Surahs</option>';
+
+        Array.from(surahSet)
+            .sort()
+            .forEach(surah => {
+                const option = document.createElement('option');
+                option.value = surah;
+                option.textContent = surah;
+                elements.surahSelect.appendChild(option);
+            });
     }
 
     function updateRecitersList() {
@@ -1055,7 +1038,6 @@
             const li = document.createElement('li');
             li.className = 'file-item' + (index === appState.playlist.currentIndex ? ' active' : '');
 
-            // Build the row
             const main = document.createElement('div');
             main.className = 'file-main';
 
@@ -1081,14 +1063,13 @@
             main.appendChild(titleRow);
             main.appendChild(metaSpan);
 
-            // Delete Button
             const delBtn = document.createElement('button');
             delBtn.innerHTML = '🗑️';
             delBtn.className = 'delete-btn';
             delBtn.title = 'Delete from library';
 
             li.appendChild(main);
-            li.appendChild(delBtn); // Add delete button to row
+            li.appendChild(delBtn);
 
             elements.playlistFilesContainer.appendChild(li);
         });
@@ -1135,11 +1116,9 @@
         alert(`Created playlist with ${filteredFiles.length} verses`);
     }
 
-    // *** CHANGED: use audio.paused as the source of truth ***
     function togglePlayback() {
         const audio = appState.playback.audio;
 
-        // If there's no current source, start normal playback
         if (!audio.src) {
             startPlayback();
             return;
@@ -1162,7 +1141,6 @@
         }
     }
 
-    // *** CHANGED: let the 'pause' event update state & button ***
     function pausePlayback() {
         appState.playback.audio.pause();
     }
@@ -1173,14 +1151,12 @@
         elements.stopButton.disabled = true;
     }
 
-    // *** CHANGED: only reset src if needed, don't always restart ***
     function playCurrentTrack() {
         const file = appState.playlist.files[appState.playlist.currentIndex];
         if (!file) return;
 
         const audio = appState.playback.audio;
 
-        // Only change src when switching tracks
         if (audio.src !== file.url) {
             audio.src = file.url;
             audio.currentTime = 0;
@@ -1209,7 +1185,6 @@
             appState.playback.currentVerseRepeat = 0;
             playCurrentTrack();
         } else {
-            // End of playlist
             if (appState.playlist.playlistRepeatCount < appState.playlist.totalRepeats - 1) {
                 appState.playlist.playlistRepeatCount++;
                 appState.playlist.currentIndex = 0;
@@ -1222,7 +1197,6 @@
     }
 
     function handleTrackEnd() {
-        // Verse repeat logic
         if (appState.playback.currentVerseRepeat < appState.playback.totalVerseRepeats - 1) {
             appState.playback.currentVerseRepeat++;
             appState.playback.audio.currentTime = 0;

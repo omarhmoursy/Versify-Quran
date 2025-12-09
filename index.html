@@ -162,6 +162,7 @@
             border-radius: 6px; max-height: 100px; overflow-y: auto;
         }
 
+        /* Buttons */
         .btn {
             display: inline-flex; align-items: center; justify-content: center;
             padding: 8px 12px; border-radius: 999px; border: none;
@@ -204,6 +205,7 @@
         }
         .btn-icon:disabled { opacity: 0.4; cursor: default; }
 
+        /* Settings cards */
         .settings-row {
             display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 8px;
         }
@@ -215,6 +217,7 @@
         }
         .setting-box h3 { margin: 0 0 6px; font-size: 13px; color: #e5e7eb; }
 
+        /* Playlist and player */
         .player-section {
             display: grid; grid-template-columns: minmax(0, 36%) minmax(0, 64%); gap: 12px;
         }
@@ -289,10 +292,12 @@
         }
         .delete-btn:hover { opacity: 1; transform: scale(1.1); }
 
+        /* Reciter Organization */
         .reciter-section { margin-bottom: 20px; }
         .reciter-header { padding: 12px; background-color: var(--light-color); border-radius: 6px; font-weight: 500; margin-bottom: 10px; cursor: pointer; }
         .reciter-content { padding-left: 15px; }
 
+        /* Alerts */
         .alert { padding: 12px 15px; border-radius: 6px; margin-bottom: 15px; display: flex; align-items: center; gap: 10px; }
         .alert-info { background-color: var(--accent-color); color: var(--primary-color); }
         .alert-success { background-color: #d1fae5; color: #047857; }
@@ -399,7 +404,7 @@
                     <div class="alert alert-success">
                         <span class="alert-icon">💾</span>
                         <div>
-                            Your uploaded files are stored locally using <strong>IndexedDB</strong>, so they remain available even after closing the page.
+                            Your uploaded files are stored locally using <strong>IndexedDB</strong>.
                         </div>
                     </div>
                 </div>
@@ -419,7 +424,7 @@
         <div class="tab-content" id="playlistContent">
             <h2 class="section-title">
                 <span class="section-icon">🎧</span> Build Playlist
-                <small>Select reciter / surah and verse range, then control repeats.</small>
+                <small>Select reciter first to see available Surahs.</small>
             </h2>
 
             <div class="grid">
@@ -509,9 +514,6 @@
                             </span>
                         </div>
                     </div>
-
-                    <!-- Hidden audio element used for playback (more reliable on mobile) -->
-                    <audio id="hiddenAudio" preload="auto" playsinline style="display:none;"></audio>
                 </div>
 
                 <div class="playlist-card">
@@ -526,7 +528,8 @@
                             </button>
                         </div>
                     </div>
-                    <ul id="playlistFiles" class="playlist-list"></ul>
+                    <ul id="playlistFiles" class="playlist-list">
+                        </ul>
                 </div>
             </div>
         </div>
@@ -560,7 +563,7 @@
         },
         playback: {
             isPlaying: false,
-            audio: null,
+            audio: new Audio(),
             currentVerseRepeat: 0,
             totalVerseRepeats: 3
         }
@@ -621,7 +624,7 @@
             if (!db) return resolve();
             const tx = db.transaction(FILE_STORE, 'readwrite');
             const store = tx.objectStore(FILE_STORE);
-            store.delete(id);
+            const request = store.delete(id);
             tx.oncomplete = () => resolve();
             tx.onerror = () => reject(tx.error);
         });
@@ -632,7 +635,7 @@
             if (!db) return resolve();
             const tx = db.transaction(FILE_STORE, 'readwrite');
             const store = tx.objectStore(FILE_STORE);
-            store.clear();
+            const request = store.clear();
             tx.oncomplete = () => resolve();
             tx.onerror = () => reject(tx.error);
         });
@@ -682,7 +685,7 @@
                 }
 
                 updateRecitersDropdown();
-                updateSurahsDropdown();
+                updateSurahsDropdown(); // Initialize with ALL
                 updateRecitersList();
                 updatePlaylistDisplay();
                 resolve();
@@ -694,6 +697,7 @@
         });
     }
 
+    // DOM elements
     const elements = {
         tabs: document.querySelectorAll('.tab'),
         tabContents: document.querySelectorAll('.tab-content'),
@@ -722,17 +726,15 @@
         playbackInfo: document.getElementById('playbackInfo'),
         installBanner: document.getElementById('installBanner'),
         dismissBanner: document.getElementById('dismissBanner'),
-        playlistCount: document.getElementById('playlistCount'),
-        hiddenAudio: document.getElementById('hiddenAudio')
+        playlistCount: document.getElementById('playlistCount')
     };
 
+    // Initialize app
     document.addEventListener('DOMContentLoaded', async () => {
-        // Attach the DOM audio element to appState
-        appState.playback.audio = elements.hiddenAudio;
-        elements.hiddenAudio.preload = 'auto';
-
         initEventListeners();
         showInstallBannerIfNeeded();
+        setupMediaSession(); // Enable Lock Screen Controls
+
         if ('indexedDB' in window) {
             try {
                 await initDB();
@@ -771,6 +773,11 @@
         elements.uploadButton.addEventListener('click', handleFileUpload);
         elements.createPlaylistButton.addEventListener('click', createPlaylistFromRange);
 
+        // FILTER LOGIC FIX: When Reciter changes, update Surah list
+        elements.reciterSelect.addEventListener('change', function() {
+            updateSurahsDropdown(this.value);
+        });
+
         elements.playButton.addEventListener('click', togglePlayback);
         elements.stopButton.addEventListener('click', stopPlayback);
         elements.prevButton.addEventListener('click', playPreviousTrack);
@@ -778,24 +785,19 @@
         elements.clearPlaylistButton.addEventListener('click', clearPlaylist);
         elements.clearLibraryButton.addEventListener('click', handleClearLibrary);
 
-        elements.reciterSelect.addEventListener('change', () => {
-            updateSurahsDropdown();
+        appState.playback.audio.addEventListener('timeupdate', updateProgressBar);
+        appState.playback.audio.addEventListener('ended', handleTrackEnd);
+
+        // Ensure audio context doesn't sleep
+        appState.playback.audio.addEventListener('play', () => {
+            if (navigator.mediaSession) {
+                navigator.mediaSession.playbackState = "playing";
+            }
         });
-
-        const audio = elements.hiddenAudio;
-
-        audio.addEventListener('timeupdate', updateProgressBar);
-        audio.addEventListener('ended', handleTrackEnd);
-
-        audio.addEventListener('play', () => {
-            appState.playback.isPlaying = true;
-            elements.playButton.textContent = '⏸';
-            elements.stopButton.disabled = false;
-        });
-
-        audio.addEventListener('pause', () => {
-            appState.playback.isPlaying = false;
-            elements.playButton.textContent = '▶';
+        appState.playback.audio.addEventListener('pause', () => {
+            if (navigator.mediaSession) {
+                navigator.mediaSession.playbackState = "paused";
+            }
         });
 
         elements.playlistRepeatsInput.addEventListener('change', function() {
@@ -814,7 +816,7 @@
                 const fileItem = e.target.closest('.file-item');
                 const index = Array.from(elements.playlistFilesContainer.children).indexOf(fileItem);
                 const fileObj = appState.playlist.files[index];
-                handleDeleteFile(fileObj.id);
+                handleDeleteFile(fileObj.id, fileItem);
                 e.stopPropagation();
                 return;
             }
@@ -830,6 +832,43 @@
             }
         });
     }
+
+    // --- Media Session API (Background Audio Fix) ---
+    function setupMediaSession() {
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.setActionHandler('play', () => {
+                startPlayback();
+            });
+            navigator.mediaSession.setActionHandler('pause', () => {
+                pausePlayback();
+            });
+            navigator.mediaSession.setActionHandler('previoustrack', () => {
+                playPreviousTrack();
+            });
+            navigator.mediaSession.setActionHandler('nexttrack', () => {
+                playNextTrack();
+            });
+            // Stop handler is optional but good practice
+            navigator.mediaSession.setActionHandler('stop', () => {
+                stopPlayback();
+            });
+        }
+    }
+
+    function updateMediaSessionMetadata(file) {
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: file.name,
+                artist: file.reciter || 'Unknown Reciter',
+                album: file.surah || 'Quran Player',
+                artwork: [
+                    { src: 'quran-icon.png', sizes: '96x96', type: 'image/png' },
+                    { src: 'quran-icon.png', sizes: '128x128', type: 'image/png' },
+                ]
+            });
+        }
+    }
+    // ------------------------------------------------
 
     function updateFilePreview(files) {
         if (files.length === 0) {
@@ -878,7 +917,8 @@
         }
 
         updateRecitersDropdown();
-        updateSurahsDropdown();
+        // Update surah dropdown based on the currently selected reciter (if any)
+        updateSurahsDropdown(elements.reciterSelect.value);
         updateRecitersList();
         updatePlaylistDisplay();
         alert(`Added ${files.length} files to your library and playlist!`);
@@ -886,11 +926,11 @@
         elements.fileListPreview.textContent = 'No files selected';
     }
 
-    async function handleDeleteFile(id) {
+    async function handleDeleteFile(id, domElement) {
         if (!confirm('Permanently delete this file from your library? This cannot be undone.')) return;
 
-        const currentFile = appState.playlist.files[appState.playlist.currentIndex];
-        if (currentFile && currentFile.id === id) {
+        const isPlayingCurrent = appState.playlist.files[appState.playlist.currentIndex]?.id === id;
+        if (isPlayingCurrent) {
             stopPlayback();
         }
 
@@ -919,22 +959,17 @@
         const fileIndexPlaylist = appState.playlist.files.findIndex(f => f.id === id);
         if (fileIndexPlaylist > -1) {
             appState.playlist.files.splice(fileIndexPlaylist, 1);
-            if (appState.playlist.currentIndex >= appState.playlist.files.length) {
-                appState.playlist.currentIndex = Math.max(0, appState.playlist.files.length - 1);
-            }
         }
 
         updateRecitersDropdown();
-        updateSurahsDropdown();
+        updateSurahsDropdown(elements.reciterSelect.value);
         updateRecitersList();
         updatePlaylistDisplay();
     }
 
     async function handleClearLibrary() {
         if (!confirm('WARNING: This will delete ALL audio files and data. Are you sure?')) return;
-
         stopPlayback();
-
         try {
             await clearAllFromDB();
         } catch (e) {
@@ -967,36 +1002,46 @@
     }
 
     function updateRecitersDropdown() {
-        const reciters = Object.keys(appState.library.reciters).sort();
+        const currentSelection = elements.reciterSelect.value;
+        const reciters = Object.keys(appState.library.reciters);
         elements.reciterSelect.innerHTML = '<option value="">All Reciters</option>';
         reciters.forEach(reciter => {
             const option = document.createElement('option');
             option.value = reciter;
             option.textContent = reciter;
+            if(reciter === currentSelection) option.selected = true;
             elements.reciterSelect.appendChild(option);
         });
     }
 
-    // Surah list depends on selected reciter
-    function updateSurahsDropdown() {
-        const reciterFilter = elements.reciterSelect.value;
-        const surahSet = new Set();
-
-        appState.library.files.forEach(file => {
-            if (reciterFilter && file.reciter !== reciterFilter) return;
-            if (file.surah) surahSet.add(file.surah);
-        });
-
+    // Logic Fix: Filter Surahs based on selected Reciter
+    function updateSurahsDropdown(selectedReciter) {
+        const currentSelection = elements.surahSelect.value;
         elements.surahSelect.innerHTML = '<option value="">All Surahs</option>';
 
-        Array.from(surahSet)
-            .sort()
-            .forEach(surah => {
-                const option = document.createElement('option');
-                option.value = surah;
-                option.textContent = surah;
-                elements.surahSelect.appendChild(option);
-            });
+        let surahsToShow = [];
+
+        if (selectedReciter && selectedReciter !== "") {
+            // Get files for this reciter
+            const reciterFiles = appState.library.reciters[selectedReciter];
+            if (reciterFiles) {
+                // Extract unique surahs from these files
+                const uniqueSurahs = new Set(reciterFiles.map(f => f.surah));
+                surahsToShow = Array.from(uniqueSurahs);
+            }
+        } else {
+            // Show all surahs
+            surahsToShow = Object.keys(appState.library.surahs);
+        }
+
+        surahsToShow.forEach(surah => {
+            const option = document.createElement('option');
+            option.value = surah;
+            option.textContent = surah;
+            // Keep selection if it still exists in the new list
+            if(surah === currentSelection) option.selected = true;
+            elements.surahSelect.appendChild(option);
+        });
     }
 
     function updateRecitersList() {
@@ -1119,18 +1164,8 @@
     }
 
     function togglePlayback() {
-        const audio = appState.playback.audio;
-
-        if (!audio.src) {
-            startPlayback();
-            return;
-        }
-
-        if (audio.paused) {
-            audio.play().catch(e => console.error('Playback error:', e));
-        } else {
-            pausePlayback();
-        }
+        if (appState.playback.isPlaying) pausePlayback();
+        else startPlayback();
     }
 
     function startPlayback() {
@@ -1138,64 +1173,37 @@
             alert('Please add files to your playlist first');
             return;
         }
-        if (!appState.playback.isPlaying) {
-            playCurrentTrack();
-        }
+        if (!appState.playback.isPlaying) playCurrentTrack();
+        else appState.playback.audio.play(); // Resume
     }
 
     function pausePlayback() {
-        const audio = appState.playback.audio;
-        audio.pause();
+        appState.playback.isPlaying = false;
+        appState.playback.audio.pause();
+        elements.playButton.textContent = '▶';
     }
 
     function stopPlayback() {
-        const audio = appState.playback.audio;
         pausePlayback();
-        audio.currentTime = 0;
+        appState.playback.audio.currentTime = 0;
         elements.stopButton.disabled = true;
-    }
-
-    function updateMediaSessionMetadata(file) {
-        if ('mediaSession' in navigator) {
-            navigator.mediaSession.metadata = new MediaMetadata({
-                title: file.surah || file.name,
-                artist: file.reciter || '',
-                album: 'Quran Recitation'
-            });
-
-            navigator.mediaSession.setActionHandler('play', () => {
-                appState.playback.audio.play().catch(() => {});
-            });
-            navigator.mediaSession.setActionHandler('pause', () => {
-                appState.playback.audio.pause();
-            });
-            navigator.mediaSession.setActionHandler('previoustrack', () => {
-                playPreviousTrack();
-            });
-            navigator.mediaSession.setActionHandler('nexttrack', () => {
-                playNextTrack();
-            });
-        }
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = "none";
     }
 
     function playCurrentTrack() {
         const file = appState.playlist.files[appState.playlist.currentIndex];
         if (!file) return;
 
-        const audio = appState.playback.audio;
-
-        if (audio.src !== file.url) {
-            audio.src = file.url;
-            audio.currentTime = 0;
-        }
-
-        updateMediaSessionMetadata(file);
-
-        audio.play()
+        appState.playback.audio.src = file.url;
+        appState.playback.audio.play()
             .then(() => {
+                appState.playback.isPlaying = true;
+                elements.playButton.textContent = '⏸';
+                elements.stopButton.disabled = false;
                 elements.nowPlayingTitle.textContent = file.name;
                 elements.playbackInfo.textContent = `${file.reciter} - ${file.surah}`;
                 updatePlaylistDisplay();
+                updateMediaSessionMetadata(file); // Update lock screen info
             })
             .catch(e => console.error('Playback error:', e));
     }
@@ -1226,21 +1234,18 @@
     }
 
     function handleTrackEnd() {
-        const audio = appState.playback.audio;
         if (appState.playback.currentVerseRepeat < appState.playback.totalVerseRepeats - 1) {
             appState.playback.currentVerseRepeat++;
-            audio.currentTime = 0;
-            audio.play().catch(() => {});
+            appState.playback.audio.currentTime = 0;
+            appState.playback.audio.play();
         } else {
-            appState.playback.currentVerseRepeat = 0;
             playNextTrack();
         }
     }
 
     function updateProgressBar() {
-        const audio = appState.playback.audio;
-        const duration = audio.duration;
-        const currentTime = audio.currentTime;
+        const duration = appState.playback.audio.duration;
+        const currentTime = appState.playback.audio.currentTime;
         if (duration) {
             const percent = (currentTime / duration) * 100;
             elements.progressBar.style.width = percent + '%';
@@ -1253,7 +1258,6 @@
         stopPlayback();
         updatePlaylistDisplay();
         elements.nowPlayingTitle.textContent = "No track selected";
-        elements.playbackInfo.textContent = "—";
     }
 
 </script>

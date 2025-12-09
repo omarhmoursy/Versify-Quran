@@ -235,33 +235,14 @@
         .now-playing { font-size: 12px; color: #e5e7eb; margin: 5px 0; line-height: 1.5; }
         .playback-info { font-size: 11px; color: #9ca3af; margin: 4px 0 0; }
 
-        /* Draggable Progress Bar (Input Range) */
-        .progress-container {
-            width: 100%; margin: 10px 0 15px;
+        .progress-bar-container {
+            width: 100%; height: 4px; border-radius: 999px;
+            background-color: rgba(31,41,55,0.9); margin: 8px 0 10px; overflow: hidden;
         }
-        input[type=range].seek-slider {
-            -webkit-appearance: none;
-            width: 100%;
-            height: 6px;
-            background: rgba(31,41,55,0.9);
-            border-radius: 999px;
-            cursor: pointer;
-            outline: none;
-            position: relative;
-        }
-        input[type=range].seek-slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            height: 16px; width: 16px;
-            border-radius: 50%;
-            background: #ffffff;
-            border: 2px solid #22c55e;
-            margin-top: -5px;
-            box-shadow: 0 0 10px rgba(34,197,94,0.5);
-            transition: transform 0.1s;
-        }
+        .progress-bar { width: 0; height: 100%; background: linear-gradient(90deg, #22c55e, #eab308); transition: width 0.15s linear; }
 
         .player-controls { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
-        .transport-controls { display: flex; gap: 6px; align-items: center; justify-content: center; flex-wrap: wrap; }
+        .transport-controls { display: flex; gap: 6px; align-items: center; }
         .playlist-meta { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #9ca3af; }
 
         .pill {
@@ -517,11 +498,9 @@
                             <span style="font-size: 11px;">Verse-repeat mode</span>
                         </div>
                     </div>
-
-                    <div class="progress-container">
-                        <input type="range" id="seekSlider" class="seek-slider" min="0" max="100" value="0" step="0.1">
+                    <div class="progress-bar-container">
+                        <div id="progressBar" class="progress-bar"></div>
                     </div>
-
                     <div class="player-controls">
                         <div class="transport-controls">
                             <button id="prevButton" class="btn-icon" title="Previous track">⏮</button>
@@ -706,7 +685,7 @@
                 }
 
                 updateRecitersDropdown();
-                updateSurahsDropdown();
+                updateSurahsDropdown(); // Initialize with ALL
                 updateRecitersList();
                 updatePlaylistDisplay();
                 resolve();
@@ -742,7 +721,7 @@
         stopButton: document.getElementById('stopButton'),
         prevButton: document.getElementById('prevButton'),
         nextButton: document.getElementById('nextButton'),
-        seekSlider: document.getElementById('seekSlider'),
+        progressBar: document.getElementById('progressBar'),
         nowPlayingTitle: document.getElementById('nowPlayingTitle'),
         playbackInfo: document.getElementById('playbackInfo'),
         installBanner: document.getElementById('installBanner'),
@@ -754,7 +733,7 @@
     document.addEventListener('DOMContentLoaded', async () => {
         initEventListeners();
         showInstallBannerIfNeeded();
-        setupMediaSession();
+        setupMediaSession(); // Enable Lock Screen Controls
 
         if ('indexedDB' in window) {
             try {
@@ -794,6 +773,7 @@
         elements.uploadButton.addEventListener('click', handleFileUpload);
         elements.createPlaylistButton.addEventListener('click', createPlaylistFromRange);
 
+        // FILTER LOGIC FIX: When Reciter changes, update Surah list
         elements.reciterSelect.addEventListener('change', function() {
             updateSurahsDropdown(this.value);
         });
@@ -805,34 +785,19 @@
         elements.clearPlaylistButton.addEventListener('click', clearPlaylist);
         elements.clearLibraryButton.addEventListener('click', handleClearLibrary);
 
-        // Slider Interaction (On screen)
-        elements.seekSlider.addEventListener('input', handleSeekInput);
-        elements.seekSlider.addEventListener('change', () => {
-            // Update media session position ONLY when user finishes dragging
-            updatePositionState();
-        });
-
-        // Audio Events
-        // IMPORTANT: We do NOT update mediaSession here to prevent iOS crash
         appState.playback.audio.addEventListener('timeupdate', updateProgressBar);
         appState.playback.audio.addEventListener('ended', handleTrackEnd);
 
-        // Ensure metadata is set when file loads
-        appState.playback.audio.addEventListener('loadedmetadata', () => {
-             updatePositionState();
-        });
-
-        // Update Position State explicitly on play/pause/seeked
+        // Ensure audio context doesn't sleep
         appState.playback.audio.addEventListener('play', () => {
-            if (navigator.mediaSession) navigator.mediaSession.playbackState = "playing";
-            updatePositionState();
+            if (navigator.mediaSession) {
+                navigator.mediaSession.playbackState = "playing";
+            }
         });
         appState.playback.audio.addEventListener('pause', () => {
-            if (navigator.mediaSession) navigator.mediaSession.playbackState = "paused";
-            updatePositionState();
-        });
-        appState.playback.audio.addEventListener('seeked', () => {
-            updatePositionState();
+            if (navigator.mediaSession) {
+                navigator.mediaSession.playbackState = "paused";
+            }
         });
 
         elements.playlistRepeatsInput.addEventListener('change', function() {
@@ -868,71 +833,25 @@
         });
     }
 
-    // --- Seek Functions ---
-    function seekRelative(seconds) {
-        const audio = appState.playback.audio;
-        if (audio && audio.duration) {
-            audio.currentTime = Math.min(Math.max(audio.currentTime + seconds, 0), audio.duration);
-        }
-    }
-
-    function handleSeekInput() {
-        const audio = appState.playback.audio;
-        const val = elements.seekSlider.value;
-        if (audio && audio.duration) {
-            const seekTime = audio.duration * (val / 100);
-            audio.currentTime = seekTime;
-        }
-        updateSliderGradient(val);
-    }
-
-    function updateSliderGradient(value) {
-        elements.seekSlider.style.background = `linear-gradient(to right, #22c55e 0%, #eab308 ${value}%, rgba(31,41,55,0.9) ${value}%, rgba(31,41,55,0.9) 100%)`;
-    }
-
-    // --- Media Session API ---
+    // --- Media Session API (Background Audio Fix) ---
     function setupMediaSession() {
         if ('mediaSession' in navigator) {
-            navigator.mediaSession.setActionHandler('play', () => startPlayback());
-            navigator.mediaSession.setActionHandler('pause', () => pausePlayback());
-            navigator.mediaSession.setActionHandler('previoustrack', () => playPreviousTrack());
-            navigator.mediaSession.setActionHandler('nexttrack', () => playNextTrack());
-            navigator.mediaSession.setActionHandler('stop', () => stopPlayback());
-
-            // Native seeking support (Lock Screen / Control Center)
-            navigator.mediaSession.setActionHandler('seekbackward', (details) => {
-                const skipTime = details.seekOffset || 10;
-                seekRelative(-skipTime);
+            navigator.mediaSession.setActionHandler('play', () => {
+                startPlayback();
             });
-            navigator.mediaSession.setActionHandler('seekforward', (details) => {
-                const skipTime = details.seekOffset || 10;
-                seekRelative(skipTime);
+            navigator.mediaSession.setActionHandler('pause', () => {
+                pausePlayback();
             });
-            navigator.mediaSession.setActionHandler('seekto', (details) => {
-                if (details.seekTime && appState.playback.audio) {
-                    appState.playback.audio.currentTime = details.seekTime;
-                }
+            navigator.mediaSession.setActionHandler('previoustrack', () => {
+                playPreviousTrack();
             });
-        }
-    }
-
-    // This helper updates the Lock Screen timeline.
-    // We call this ONLY on specific events (play/pause/seek), NOT continuously.
-    function updatePositionState() {
-        if ('mediaSession' in navigator && appState.playback.audio) {
-            const audio = appState.playback.audio;
-            if (audio.duration && !isNaN(audio.duration)) {
-                try {
-                    navigator.mediaSession.setPositionState({
-                        duration: audio.duration,
-                        playbackRate: audio.playbackRate,
-                        position: audio.currentTime
-                    });
-                } catch(e) {
-                    // Position state errors are often benign
-                    console.log("Position state update skipped");
-                }
-            }
+            navigator.mediaSession.setActionHandler('nexttrack', () => {
+                playNextTrack();
+            });
+            // Stop handler is optional but good practice
+            navigator.mediaSession.setActionHandler('stop', () => {
+                stopPlayback();
+            });
         }
     }
 
@@ -949,6 +868,7 @@
             });
         }
     }
+    // ------------------------------------------------
 
     function updateFilePreview(files) {
         if (files.length === 0) {
@@ -997,6 +917,7 @@
         }
 
         updateRecitersDropdown();
+        // Update surah dropdown based on the currently selected reciter (if any)
         updateSurahsDropdown(elements.reciterSelect.value);
         updateRecitersList();
         updatePlaylistDisplay();
@@ -1093,6 +1014,7 @@
         });
     }
 
+    // Logic Fix: Filter Surahs based on selected Reciter
     function updateSurahsDropdown(selectedReciter) {
         const currentSelection = elements.surahSelect.value;
         elements.surahSelect.innerHTML = '<option value="">All Surahs</option>';
@@ -1100,12 +1022,15 @@
         let surahsToShow = [];
 
         if (selectedReciter && selectedReciter !== "") {
+            // Get files for this reciter
             const reciterFiles = appState.library.reciters[selectedReciter];
             if (reciterFiles) {
+                // Extract unique surahs from these files
                 const uniqueSurahs = new Set(reciterFiles.map(f => f.surah));
                 surahsToShow = Array.from(uniqueSurahs);
             }
         } else {
+            // Show all surahs
             surahsToShow = Object.keys(appState.library.surahs);
         }
 
@@ -1113,6 +1038,7 @@
             const option = document.createElement('option');
             option.value = surah;
             option.textContent = surah;
+            // Keep selection if it still exists in the new list
             if(surah === currentSelection) option.selected = true;
             elements.surahSelect.appendChild(option);
         });
@@ -1248,7 +1174,7 @@
             return;
         }
         if (!appState.playback.isPlaying) playCurrentTrack();
-        else appState.playback.audio.play();
+        else appState.playback.audio.play(); // Resume
     }
 
     function pausePlayback() {
@@ -1277,8 +1203,7 @@
                 elements.nowPlayingTitle.textContent = file.name;
                 elements.playbackInfo.textContent = `${file.reciter} - ${file.surah}`;
                 updatePlaylistDisplay();
-                updateMediaSessionMetadata(file);
-                updatePositionState();
+                updateMediaSessionMetadata(file); // Update lock screen info
             })
             .catch(e => console.error('Playback error:', e));
     }
@@ -1323,9 +1248,7 @@
         const currentTime = appState.playback.audio.currentTime;
         if (duration) {
             const percent = (currentTime / duration) * 100;
-            elements.seekSlider.value = percent;
-            updateSliderGradient(percent);
-            // Note: We deliberately do NOT update mediaSession here to avoid iOS crashes
+            elements.progressBar.style.width = percent + '%';
         }
     }
 
@@ -1335,8 +1258,6 @@
         stopPlayback();
         updatePlaylistDisplay();
         elements.nowPlayingTitle.textContent = "No track selected";
-        elements.seekSlider.value = 0;
-        updateSliderGradient(0);
     }
 
 </script>

@@ -205,6 +205,10 @@
         }
         .btn-icon:disabled { opacity: 0.4; cursor: default; }
 
+        .btn-icon-small {
+            width: 28px; height: 28px; font-size: 10px;
+        }
+
         /* Settings cards */
         .settings-row {
             display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 8px;
@@ -235,14 +239,50 @@
         .now-playing { font-size: 12px; color: #e5e7eb; margin: 5px 0; line-height: 1.5; }
         .playback-info { font-size: 11px; color: #9ca3af; margin: 4px 0 0; }
 
-        .progress-bar-container {
-            width: 100%; height: 4px; border-radius: 999px;
-            background-color: rgba(31,41,55,0.9); margin: 8px 0 10px; overflow: hidden;
+        /* Draggable Progress Bar (Input Range) */
+        .progress-container {
+            width: 100%; margin: 10px 0 15px;
         }
-        .progress-bar { width: 0; height: 100%; background: linear-gradient(90deg, #22c55e, #eab308); transition: width 0.15s linear; }
+
+        /* Custom Range Slider Styling */
+        input[type=range].seek-slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            background: rgba(31,41,55,0.9);
+            border-radius: 999px;
+            cursor: pointer;
+            outline: none;
+            position: relative;
+        }
+        /* Chrome/Safari Thumb */
+        input[type=range].seek-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #ffffff;
+            border: 2px solid #22c55e;
+            margin-top: -5px; /* Centers thumb on track */
+            box-shadow: 0 0 10px rgba(34,197,94,0.5);
+            transition: transform 0.1s;
+        }
+        input[type=range].seek-slider::-webkit-slider-thumb:active {
+            transform: scale(1.2);
+        }
+        /* Firefox Thumb */
+        input[type=range].seek-slider::-moz-range-thumb {
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #ffffff;
+            border: 2px solid #22c55e;
+            box-shadow: 0 0 10px rgba(34,197,94,0.5);
+            border: none;
+        }
 
         .player-controls { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
-        .transport-controls { display: flex; gap: 6px; align-items: center; }
+        .transport-controls { display: flex; gap: 6px; align-items: center; justify-content: center; flex-wrap: wrap; }
         .playlist-meta { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #9ca3af; }
 
         .pill {
@@ -498,15 +538,21 @@
                             <span style="font-size: 11px;">Verse-repeat mode</span>
                         </div>
                     </div>
-                    <div class="progress-bar-container">
-                        <div id="progressBar" class="progress-bar"></div>
+
+                    <div class="progress-container">
+                        <input type="range" id="seekSlider" class="seek-slider" min="0" max="100" value="0" step="0.1">
                     </div>
+
                     <div class="player-controls">
                         <div class="transport-controls">
+                            <button id="rewindButton" class="btn-icon btn-icon-small" title="Rewind 10s">↺ 10</button>
+
                             <button id="prevButton" class="btn-icon" title="Previous track">⏮</button>
                             <button id="playButton" class="btn-icon" title="Play/Pause">▶</button>
                             <button id="stopButton" class="btn-icon" title="Stop" disabled>⏹</button>
                             <button id="nextButton" class="btn-icon" title="Next track">⏭</button>
+
+                            <button id="forwardButton" class="btn-icon btn-icon-small" title="Forward 10s">↻ 10</button>
                         </div>
                         <div class="playlist-meta">
                             <span class="pill">
@@ -685,7 +731,7 @@
                 }
 
                 updateRecitersDropdown();
-                updateSurahsDropdown(); // Initialize with ALL
+                updateSurahsDropdown();
                 updateRecitersList();
                 updatePlaylistDisplay();
                 resolve();
@@ -721,7 +767,12 @@
         stopButton: document.getElementById('stopButton'),
         prevButton: document.getElementById('prevButton'),
         nextButton: document.getElementById('nextButton'),
-        progressBar: document.getElementById('progressBar'),
+
+        // Seek elements
+        seekSlider: document.getElementById('seekSlider'),
+        rewindButton: document.getElementById('rewindButton'),
+        forwardButton: document.getElementById('forwardButton'),
+
         nowPlayingTitle: document.getElementById('nowPlayingTitle'),
         playbackInfo: document.getElementById('playbackInfo'),
         installBanner: document.getElementById('installBanner'),
@@ -733,7 +784,7 @@
     document.addEventListener('DOMContentLoaded', async () => {
         initEventListeners();
         showInstallBannerIfNeeded();
-        setupMediaSession(); // Enable Lock Screen Controls
+        setupMediaSession();
 
         if ('indexedDB' in window) {
             try {
@@ -773,7 +824,6 @@
         elements.uploadButton.addEventListener('click', handleFileUpload);
         elements.createPlaylistButton.addEventListener('click', createPlaylistFromRange);
 
-        // FILTER LOGIC FIX: When Reciter changes, update Surah list
         elements.reciterSelect.addEventListener('change', function() {
             updateSurahsDropdown(this.value);
         });
@@ -785,19 +835,22 @@
         elements.clearPlaylistButton.addEventListener('click', clearPlaylist);
         elements.clearLibraryButton.addEventListener('click', handleClearLibrary);
 
+        // Seek Buttons
+        elements.rewindButton.addEventListener('click', () => seekRelative(-10));
+        elements.forwardButton.addEventListener('click', () => seekRelative(10));
+
+        // Slider Interaction
+        elements.seekSlider.addEventListener('input', handleSeekInput);
+
+        // Audio Events
         appState.playback.audio.addEventListener('timeupdate', updateProgressBar);
         appState.playback.audio.addEventListener('ended', handleTrackEnd);
 
-        // Ensure audio context doesn't sleep
         appState.playback.audio.addEventListener('play', () => {
-            if (navigator.mediaSession) {
-                navigator.mediaSession.playbackState = "playing";
-            }
+            if (navigator.mediaSession) navigator.mediaSession.playbackState = "playing";
         });
         appState.playback.audio.addEventListener('pause', () => {
-            if (navigator.mediaSession) {
-                navigator.mediaSession.playbackState = "paused";
-            }
+            if (navigator.mediaSession) navigator.mediaSession.playbackState = "paused";
         });
 
         elements.playlistRepeatsInput.addEventListener('change', function() {
@@ -833,24 +886,52 @@
         });
     }
 
-    // --- Media Session API (Background Audio Fix) ---
+    // --- Seek Functions ---
+    function seekRelative(seconds) {
+        const audio = appState.playback.audio;
+        if (audio && audio.duration) {
+            audio.currentTime = Math.min(Math.max(audio.currentTime + seconds, 0), audio.duration);
+        }
+    }
+
+    function handleSeekInput() {
+        const audio = appState.playback.audio;
+        const val = elements.seekSlider.value;
+        if (audio && audio.duration) {
+            const seekTime = audio.duration * (val / 100);
+            audio.currentTime = seekTime;
+        }
+        // Update gradient immediately while dragging
+        updateSliderGradient(val);
+    }
+
+    function updateSliderGradient(value) {
+        // Updates the background gradient to match the slider thumb position
+        elements.seekSlider.style.background = `linear-gradient(to right, #22c55e 0%, #eab308 ${value}%, rgba(31,41,55,0.9) ${value}%, rgba(31,41,55,0.9) 100%)`;
+    }
+
+    // --- Media Session API ---
     function setupMediaSession() {
         if ('mediaSession' in navigator) {
-            navigator.mediaSession.setActionHandler('play', () => {
-                startPlayback();
+            navigator.mediaSession.setActionHandler('play', () => startPlayback());
+            navigator.mediaSession.setActionHandler('pause', () => pausePlayback());
+            navigator.mediaSession.setActionHandler('previoustrack', () => playPreviousTrack());
+            navigator.mediaSession.setActionHandler('nexttrack', () => playNextTrack());
+            navigator.mediaSession.setActionHandler('stop', () => stopPlayback());
+
+            // Native seeking support
+            navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+                const skipTime = details.seekOffset || 10;
+                seekRelative(-skipTime);
             });
-            navigator.mediaSession.setActionHandler('pause', () => {
-                pausePlayback();
+            navigator.mediaSession.setActionHandler('seekforward', (details) => {
+                const skipTime = details.seekOffset || 10;
+                seekRelative(skipTime);
             });
-            navigator.mediaSession.setActionHandler('previoustrack', () => {
-                playPreviousTrack();
-            });
-            navigator.mediaSession.setActionHandler('nexttrack', () => {
-                playNextTrack();
-            });
-            // Stop handler is optional but good practice
-            navigator.mediaSession.setActionHandler('stop', () => {
-                stopPlayback();
+            navigator.mediaSession.setActionHandler('seekto', (details) => {
+                if (details.seekTime && appState.playback.audio) {
+                    appState.playback.audio.currentTime = details.seekTime;
+                }
             });
         }
     }
@@ -868,7 +949,6 @@
             });
         }
     }
-    // ------------------------------------------------
 
     function updateFilePreview(files) {
         if (files.length === 0) {
@@ -917,7 +997,6 @@
         }
 
         updateRecitersDropdown();
-        // Update surah dropdown based on the currently selected reciter (if any)
         updateSurahsDropdown(elements.reciterSelect.value);
         updateRecitersList();
         updatePlaylistDisplay();
@@ -1014,7 +1093,6 @@
         });
     }
 
-    // Logic Fix: Filter Surahs based on selected Reciter
     function updateSurahsDropdown(selectedReciter) {
         const currentSelection = elements.surahSelect.value;
         elements.surahSelect.innerHTML = '<option value="">All Surahs</option>';
@@ -1022,15 +1100,12 @@
         let surahsToShow = [];
 
         if (selectedReciter && selectedReciter !== "") {
-            // Get files for this reciter
             const reciterFiles = appState.library.reciters[selectedReciter];
             if (reciterFiles) {
-                // Extract unique surahs from these files
                 const uniqueSurahs = new Set(reciterFiles.map(f => f.surah));
                 surahsToShow = Array.from(uniqueSurahs);
             }
         } else {
-            // Show all surahs
             surahsToShow = Object.keys(appState.library.surahs);
         }
 
@@ -1038,7 +1113,6 @@
             const option = document.createElement('option');
             option.value = surah;
             option.textContent = surah;
-            // Keep selection if it still exists in the new list
             if(surah === currentSelection) option.selected = true;
             elements.surahSelect.appendChild(option);
         });
@@ -1174,7 +1248,7 @@
             return;
         }
         if (!appState.playback.isPlaying) playCurrentTrack();
-        else appState.playback.audio.play(); // Resume
+        else appState.playback.audio.play();
     }
 
     function pausePlayback() {
@@ -1203,7 +1277,7 @@
                 elements.nowPlayingTitle.textContent = file.name;
                 elements.playbackInfo.textContent = `${file.reciter} - ${file.surah}`;
                 updatePlaylistDisplay();
-                updateMediaSessionMetadata(file); // Update lock screen info
+                updateMediaSessionMetadata(file);
             })
             .catch(e => console.error('Playback error:', e));
     }
@@ -1248,7 +1322,17 @@
         const currentTime = appState.playback.audio.currentTime;
         if (duration) {
             const percent = (currentTime / duration) * 100;
-            elements.progressBar.style.width = percent + '%';
+            elements.seekSlider.value = percent;
+            updateSliderGradient(percent);
+
+            // Sync Media Session state
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.setPositionState({
+                    duration: duration,
+                    playbackRate: appState.playback.audio.playbackRate,
+                    position: currentTime
+                });
+            }
         }
     }
 
@@ -1258,6 +1342,8 @@
         stopPlayback();
         updatePlaylistDisplay();
         elements.nowPlayingTitle.textContent = "No track selected";
+        elements.seekSlider.value = 0;
+        updateSliderGradient(0);
     }
 
 </script>

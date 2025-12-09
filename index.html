@@ -726,540 +726,624 @@
         playbackInfo: document.getElementById('playbackInfo'),
         installBanner: document.getElementById('installBanner'),
         dismissBanner: document.getElementById('dismissBanner'),
-        playlistCount: document.getElementById('playlistCount')
+        playlistCountDisplay: document.getElementById('playlistCount')
     };
 
-    // Initialize app
-    document.addEventListener('DOMContentLoaded', async () => {
-        initEventListeners();
-        showInstallBannerIfNeeded();
-        setupMediaSession(); // Enable Lock Screen Controls
+    // Utility functions
+    function pad(num, size = 2) {
+        let s = num + "";
+        while (s.length < size) s = "0" + s;
+        return s;
+    }
 
-        if ('indexedDB' in window) {
-            try {
-                await initDB();
-                await loadLibraryFromDB();
-            } catch (e) {
-                console.warn('Running without persistent storage due to error:', e);
+    function formatTime(seconds) {
+        if (isNaN(seconds) || seconds < 0) return "0:00";
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = Math.floor(seconds % 60);
+        return `${minutes}:${pad(remainingSeconds)}`;
+    }
+
+    function parseVerseNumber(fileName) {
+        const match = fileName.match(/(\d+)/);
+        return match ? parseInt(match[1], 10) : 0;
+    }
+
+    function updatePlaylistCount() {
+        elements.playlistCountDisplay.textContent = appState.playlist.files.length;
+    }
+
+    // Tab logic
+    elements.tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const target = tab.dataset.tab;
+            elements.tabs.forEach(t => t.classList.remove('active'));
+            elements.tabContents.forEach(c => c.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById(target + 'Content').classList.add('active');
+
+            if (target === 'organization') {
+                updateRecitersList();
             }
-        } else {
-            console.warn('IndexedDB not supported; uploads will not persist.');
-        }
+        });
     });
 
-    function isRunningAsApp() {
-        return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone || document.referrer.includes('android-app://');
-    }
+    // Upload & Library Logic
+    let selectedFiles = [];
 
-    function showInstallBannerIfNeeded() {
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-        if (isIOS && !isRunningAsApp()) {
-            elements.installBanner.classList.add('show');
+    elements.audioFilesInput.addEventListener('change', (event) => {
+        selectedFiles = Array.from(event.target.files);
+        updateFileListPreview();
+    });
+
+    function updateFileListPreview() {
+        const preview = elements.fileListPreview;
+        if (selectedFiles.length > 0) {
+            preview.innerHTML = `<p style="margin: 0; font-weight: 500; color: #a8dadc;">${selectedFiles.length} file(s) selected:</p>`;
+            const ul = document.createElement('ul');
+            ul.style.listStyle = 'none';
+            ul.style.padding = '0';
+            ul.style.margin = '5px 0 0';
+            ul.style.maxHeight = '80px';
+            ul.style.overflowY = 'auto';
+            selectedFiles.slice(0, 5).forEach(file => {
+                const li = document.createElement('li');
+                li.style.fontSize = '12px';
+                li.style.color = '#e5e7eb';
+                li.textContent = file.name;
+                ul.appendChild(li);
+            });
+            if (selectedFiles.length > 5) {
+                const li = document.createElement('li');
+                li.style.fontSize = '12px';
+                li.style.color = '#9ca3af';
+                li.textContent = `... and ${selectedFiles.length - 5} more.`;
+                ul.appendChild(li);
+            }
+            preview.appendChild(ul);
+        } else {
+            preview.textContent = 'No files selected';
         }
     }
 
-    function initEventListeners() {
-        elements.tabs.forEach(tab => {
-            tab.addEventListener('click', () => {
-                const target = tab.dataset.tab;
-                elements.tabs.forEach(t => t.classList.remove('active'));
-                elements.tabContents.forEach(c => c.classList.remove('active'));
-                tab.classList.add('active');
-                document.getElementById(target + 'Content').classList.add('active');
-            });
-        });
+    elements.uploadButton.addEventListener('click', async () => {
+        const reciter = elements.reciterNameInput.value.trim();
+        const surah = elements.surahNameInput.value.trim();
 
-        elements.audioFilesInput.addEventListener('change', function() { updateFilePreview(this.files); });
-        elements.uploadButton.addEventListener('click', handleFileUpload);
-        elements.createPlaylistButton.addEventListener('click', createPlaylistFromRange);
-
-        // FILTER LOGIC FIX: When Reciter changes, update Surah list
-        elements.reciterSelect.addEventListener('change', function() {
-            updateSurahsDropdown(this.value);
-        });
-
-        elements.playButton.addEventListener('click', togglePlayback);
-        elements.stopButton.addEventListener('click', stopPlayback);
-        elements.prevButton.addEventListener('click', playPreviousTrack);
-        elements.nextButton.addEventListener('click', playNextTrack);
-        elements.clearPlaylistButton.addEventListener('click', clearPlaylist);
-        elements.clearLibraryButton.addEventListener('click', handleClearLibrary);
-
-        appState.playback.audio.addEventListener('timeupdate', updateProgressBar);
-        appState.playback.audio.addEventListener('ended', handleTrackEnd);
-
-        // Ensure audio context doesn't sleep
-        appState.playback.audio.addEventListener('play', () => {
-            if (navigator.mediaSession) {
-                navigator.mediaSession.playbackState = "playing";
-            }
-        });
-        appState.playback.audio.addEventListener('pause', () => {
-            if (navigator.mediaSession) {
-                navigator.mediaSession.playbackState = "paused";
-            }
-        });
-
-        elements.playlistRepeatsInput.addEventListener('change', function() {
-            appState.playlist.totalRepeats = parseInt(this.value) || 1;
-        });
-        elements.verseRepeatsInput.addEventListener('change', function() {
-            appState.playback.totalVerseRepeats = parseInt(this.value) || 1;
-        });
-
-        elements.dismissBanner.addEventListener('click', function() {
-            elements.installBanner.classList.remove('show');
-        });
-
-        elements.playlistFilesContainer.addEventListener('click', function(e) {
-            if (e.target.classList.contains('delete-btn')) {
-                const fileItem = e.target.closest('.file-item');
-                const index = Array.from(elements.playlistFilesContainer.children).indexOf(fileItem);
-                const fileObj = appState.playlist.files[index];
-                handleDeleteFile(fileObj.id, fileItem);
-                e.stopPropagation();
-                return;
-            }
-
-            const fileItem = e.target.closest('.file-item');
-            if (fileItem) {
-                const index = Array.from(elements.playlistFilesContainer.children).indexOf(fileItem);
-                if (index >= 0) {
-                    appState.playlist.currentIndex = index;
-                    appState.playback.currentVerseRepeat = 0;
-                    playCurrentTrack();
-                }
-            }
-        });
-    }
-
-    // --- Media Session API (Background Audio Fix) ---
-    function setupMediaSession() {
-        if ('mediaSession' in navigator) {
-            navigator.mediaSession.setActionHandler('play', () => {
-                startPlayback();
-            });
-            navigator.mediaSession.setActionHandler('pause', () => {
-                pausePlayback();
-            });
-            navigator.mediaSession.setActionHandler('previoustrack', () => {
-                playPreviousTrack();
-            });
-            navigator.mediaSession.setActionHandler('nexttrack', () => {
-                playNextTrack();
-            });
-            // Stop handler is optional but good practice
-            navigator.mediaSession.setActionHandler('stop', () => {
-                stopPlayback();
-            });
-        }
-    }
-
-    function updateMediaSessionMetadata(file) {
-        if ('mediaSession' in navigator) {
-            navigator.mediaSession.metadata = new MediaMetadata({
-                title: file.name,
-                artist: file.reciter || 'Unknown Reciter',
-                album: file.surah || 'Quran Player',
-                artwork: [
-                    { src: 'quran-icon.png', sizes: '96x96', type: 'image/png' },
-                    { src: 'quran-icon.png', sizes: '128x128', type: 'image/png' },
-                ]
-            });
-        }
-    }
-    // ------------------------------------------------
-
-    function updateFilePreview(files) {
-        if (files.length === 0) {
-            elements.fileListPreview.textContent = 'No files selected';
+        if (selectedFiles.length === 0 || !reciter || !surah) {
+            alert('Please select files and enter Reciter and Surah names.');
             return;
         }
-        let fileList = '';
-        for (let i = 0; i < files.length; i++) {
-            fileList += `• ${files[i].name}<br>`;
-        }
-        elements.fileListPreview.innerHTML = fileList;
-    }
 
-    function handleFileUpload() {
-        const files = elements.audioFilesInput.files;
-        if (files.length === 0) {
-            alert('Please select audio files first');
-            return;
-        }
-        const reciter = elements.reciterNameInput.value || 'Unknown Reciter';
-        const surah = elements.surahNameInput.value || 'Unknown Surah';
-
-        if (!appState.library.reciters[reciter]) appState.library.reciters[reciter] = [];
-        if (!appState.library.surahs[surah]) appState.library.surahs[surah] = [];
-
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
+        const newFiles = [];
+        for (const file of selectedFiles) {
+            const verse = parseVerseNumber(file.name);
+            const id = Date.now() + '-' + Math.random().toString(36).substring(2, 9);
             const fileObj = {
-                id: generateUniqueId(),
+                id,
                 file: file,
                 url: URL.createObjectURL(file),
                 name: file.name,
                 reciter: reciter,
                 surah: surah,
-                verse: extractVerseNumber(file.name)
+                verse: verse
             };
+            newFiles.push(fileObj);
 
+            // Add to in-memory library
             appState.library.files.push(fileObj);
+            if (!appState.library.reciters[reciter]) appState.library.reciters[reciter] = [];
             appState.library.reciters[reciter].push(fileObj);
+
+            if (!appState.library.surahs[surah]) appState.library.surahs[surah] = [];
             appState.library.surahs[surah].push(fileObj);
-            appState.playlist.files.push(fileObj);
 
-            if (window.indexedDB) {
-                saveFileToDB(fileObj).catch(err => console.error('Error saving file to IndexedDB', err));
-            }
+            // Save to IndexedDB
+            await saveFileToDB(fileObj);
         }
 
-        updateRecitersDropdown();
-        // Update surah dropdown based on the currently selected reciter (if any)
-        updateSurahsDropdown(elements.reciterSelect.value);
-        updateRecitersList();
-        updatePlaylistDisplay();
-        alert(`Added ${files.length} files to your library and playlist!`);
-        elements.audioFilesInput.value = '';
-        elements.fileListPreview.textContent = 'No files selected';
-    }
-
-    async function handleDeleteFile(id, domElement) {
-        if (!confirm('Permanently delete this file from your library? This cannot be undone.')) return;
-
-        const isPlayingCurrent = appState.playlist.files[appState.playlist.currentIndex]?.id === id;
-        if (isPlayingCurrent) {
-            stopPlayback();
-        }
-
-        try {
-            await deleteFileFromDB(id);
-        } catch (e) {
-            console.error('Error deleting from DB', e);
-            alert('Error deleting file');
-            return;
-        }
-
-        const fileIndexLib = appState.library.files.findIndex(f => f.id === id);
-        if (fileIndexLib > -1) {
-            const f = appState.library.files[fileIndexLib];
-            if (appState.library.reciters[f.reciter]) {
-                appState.library.reciters[f.reciter] = appState.library.reciters[f.reciter].filter(x => x.id !== id);
-                if (appState.library.reciters[f.reciter].length === 0) delete appState.library.reciters[f.reciter];
-            }
-            if (appState.library.surahs[f.surah]) {
-                appState.library.surahs[f.surah] = appState.library.surahs[f.surah].filter(x => x.id !== id);
-                if (appState.library.surahs[f.surah].length === 0) delete appState.library.surahs[f.surah];
-            }
-            appState.library.files.splice(fileIndexLib, 1);
-        }
-
-        const fileIndexPlaylist = appState.playlist.files.findIndex(f => f.id === id);
-        if (fileIndexPlaylist > -1) {
-            appState.playlist.files.splice(fileIndexPlaylist, 1);
-        }
-
-        updateRecitersDropdown();
-        updateSurahsDropdown(elements.reciterSelect.value);
-        updateRecitersList();
-        updatePlaylistDisplay();
-    }
-
-    async function handleClearLibrary() {
-        if (!confirm('WARNING: This will delete ALL audio files and data. Are you sure?')) return;
-        stopPlayback();
-        try {
-            await clearAllFromDB();
-        } catch (e) {
-            console.error('Error clearing DB', e);
-            alert('Error clearing database');
-            return;
-        }
-
-        appState.library.files = [];
-        appState.library.reciters = {};
-        appState.library.surahs = {};
-        appState.playlist.files = [];
-        appState.playlist.currentIndex = 0;
+        // Reset inputs and update UI
+        selectedFiles = [];
+        elements.audioFilesInput.value = null;
+        elements.reciterNameInput.value = '';
+        elements.surahNameInput.value = '';
+        updateFileListPreview();
 
         updateRecitersDropdown();
         updateSurahsDropdown();
         updateRecitersList();
+
+        // Use the newly added files to create a default playlist/update display
+        appState.playlist.files = appState.library.files.slice();
+        updatePlaylistCount();
         updatePlaylistDisplay();
-        alert('Library cleared successfully.');
+
+        alert(`Successfully added ${newFiles.length} files for ${reciter} - ${surah}!`);
+    });
+
+    elements.clearLibraryButton.addEventListener('click', async () => {
+        if (!confirm('Are you absolutely sure you want to clear the entire library? This action is irreversible and will delete all stored audio files.')) {
+            return;
+        }
+        await clearAllFromDB();
+        // Reset in-memory state
+        appState.library.files = [];
+        appState.library.reciters = {};
+        appState.library.surahs = {};
+        appState.playlist.files = [];
+        appState.playback.audio.pause();
+        appState.playback.audio.src = '';
+
+        updateRecitersDropdown();
+        updateSurahsDropdown();
+        updateRecitersList();
+        updatePlaylistCount();
+        updatePlaylistDisplay();
+        alert('Library successfully cleared.');
+    });
+
+    // Organization & Deletion Logic
+    function updateRecitersList() {
+        const listContainer = elements.recitersList;
+        listContainer.innerHTML = '';
+
+        const reciters = Object.keys(appState.library.reciters).sort();
+        if (reciters.length === 0) {
+            listContainer.innerHTML = '<p style="color: #9ca3af;">No reciters added yet. Upload files first.</p>';
+            return;
+        }
+
+        reciters.forEach(reciterName => {
+            const reciterGroup = appState.library.reciters[reciterName];
+            const surahs = {};
+            reciterGroup.forEach(file => {
+                if (!surahs[file.surah]) surahs[file.surah] = [];
+                surahs[file.surah].push(file);
+            });
+
+            const reciterDiv = document.createElement('div');
+            reciterDiv.className = 'reciter-section';
+            reciterDiv.innerHTML = `<div class="reciter-header">${reciterName} (${reciterGroup.length} files)</div><div class="reciter-content"></div>`;
+
+            const contentDiv = reciterDiv.querySelector('.reciter-content');
+
+            Object.keys(surahs).sort().forEach(surahName => {
+                const files = surahs[surahName].sort((a, b) => a.verse - b.verse);
+                const surahList = document.createElement('ul');
+                surahList.style.listStyle = 'none';
+                surahList.style.padding = '0';
+                surahList.style.margin = '0 0 10px 0';
+                surahList.innerHTML = `<h4 style="font-size: 13px; color: #9ca3af; margin: 0 0 5px 0;">${surahName} (${files.length} verses)</h4>`;
+
+                files.forEach(file => {
+                    const listItem = document.createElement('li');
+                    listItem.className = 'file-item';
+                    listItem.innerHTML = `
+                        <div class="file-main">
+                            <span class="file-title">${file.name}</span>
+                            <span class="file-meta">Verse: ${file.verse}</span>
+                        </div>
+                        <button class="delete-btn" data-id="${file.id}">🗑️</button>
+                    `;
+                    surahList.appendChild(listItem);
+                });
+                contentDiv.appendChild(surahList);
+            });
+            listContainer.appendChild(reciterDiv);
+        });
+
+        document.querySelectorAll('.delete-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const id = e.currentTarget.dataset.id;
+                deleteFile(id);
+            });
+        });
     }
 
-    function generateUniqueId() {
-        return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    async function deleteFile(id) {
+        if (!confirm('Delete this audio file? This is irreversible.')) return;
+
+        // 1. Delete from IndexedDB
+        await deleteFileFromDB(id);
+
+        // 2. Delete from in-memory library
+        const fileToDelete = appState.library.files.find(f => f.id === id);
+        if (fileToDelete) {
+            // Revoke URL to free memory
+            URL.revokeObjectURL(fileToDelete.url);
+
+            // Filter out of library.files
+            appState.library.files = appState.library.files.filter(f => f.id !== id);
+
+            // Filter out of reciters/surahs collections
+            if (appState.library.reciters[fileToDelete.reciter]) {
+                appState.library.reciters[fileToDelete.reciter] = appState.library.reciters[fileToDelete.reciter].filter(f => f.id !== id);
+                if (appState.library.reciters[fileToDelete.reciter].length === 0) {
+                    delete appState.library.reciters[fileToDelete.reciter];
+                }
+            }
+            if (appState.library.surahs[fileToDelete.surah]) {
+                appState.library.surahs[fileToDelete.surah] = appState.library.surahs[fileToDelete.surah].filter(f => f.id !== id);
+                if (appState.library.surahs[fileToDelete.surah].length === 0) {
+                    delete appState.library.surahs[fileToDelete.surah];
+                }
+            }
+
+            // Filter out of current playlist
+            appState.playlist.files = appState.playlist.files.filter(f => f.id !== id);
+
+            // Stop playback if the current file was deleted
+            if (appState.playback.audio.src.includes(fileToDelete.id)) {
+                stopPlayback();
+            }
+
+            // Update UI
+            updateRecitersDropdown();
+            updateSurahsDropdown();
+            updateRecitersList();
+            updatePlaylistCount();
+            updatePlaylistDisplay();
+        }
     }
 
-    function extractVerseNumber(filename) {
-        const matches = filename.match(/\d+/);
-        if (!matches) return null;
-        return parseInt(matches[0], 10);
-    }
-
+    // Playlist Creation Logic
     function updateRecitersDropdown() {
-        const currentSelection = elements.reciterSelect.value;
-        const reciters = Object.keys(appState.library.reciters);
-        elements.reciterSelect.innerHTML = '<option value="">All Reciters</option>';
-        reciters.forEach(reciter => {
+        const select = elements.reciterSelect;
+        const currentReciter = select.value;
+        select.innerHTML = '<option value="">All Reciters</option>';
+        Object.keys(appState.library.reciters).sort().forEach(reciter => {
             const option = document.createElement('option');
             option.value = reciter;
             option.textContent = reciter;
-            if(reciter === currentSelection) option.selected = true;
-            elements.reciterSelect.appendChild(option);
+            select.appendChild(option);
         });
+        select.value = currentReciter || '';
+        if (!select.value) updateSurahsDropdown();
     }
 
-    // Logic Fix: Filter Surahs based on selected Reciter
-    function updateSurahsDropdown(selectedReciter) {
-        const currentSelection = elements.surahSelect.value;
-        elements.surahSelect.innerHTML = '<option value="">All Surahs</option>';
+    function updateSurahsDropdown() {
+        const reciterName = elements.reciterSelect.value;
+        const select = elements.surahSelect;
+        const currentSurah = select.value;
+        select.innerHTML = '<option value="">All Surahs</option>';
 
-        let surahsToShow = [];
-
-        if (selectedReciter && selectedReciter !== "") {
-            // Get files for this reciter
-            const reciterFiles = appState.library.reciters[selectedReciter];
-            if (reciterFiles) {
-                // Extract unique surahs from these files
-                const uniqueSurahs = new Set(reciterFiles.map(f => f.surah));
-                surahsToShow = Array.from(uniqueSurahs);
-            }
+        let files = [];
+        if (reciterName) {
+            files = appState.library.reciters[reciterName] || [];
         } else {
-            // Show all surahs
-            surahsToShow = Object.keys(appState.library.surahs);
+            files = appState.library.files;
         }
 
-        surahsToShow.forEach(surah => {
+        const uniqueSurahs = [...new Set(files.map(f => f.surah))].sort();
+
+        uniqueSurahs.forEach(surah => {
             const option = document.createElement('option');
             option.value = surah;
             option.textContent = surah;
-            // Keep selection if it still exists in the new list
-            if(surah === currentSelection) option.selected = true;
-            elements.surahSelect.appendChild(option);
+            select.appendChild(option);
         });
+        select.value = currentSurah || '';
     }
 
-    function updateRecitersList() {
-        const reciters = Object.keys(appState.library.reciters);
-        if (reciters.length === 0) {
-            elements.recitersList.innerHTML = '<p>No reciters added yet. Upload files first.</p>';
+    elements.reciterSelect.addEventListener('change', updateSurahsDropdown);
+
+    elements.createPlaylistButton.addEventListener('click', () => {
+        const reciter = elements.reciterSelect.value;
+        const surah = elements.surahSelect.value;
+        const start = parseInt(elements.startVerseInput.value, 10);
+        const end = parseInt(elements.endVerseInput.value, 10);
+        const playlistRepeats = parseInt(elements.playlistRepeatsInput.value, 10) || 1;
+        const verseRepeats = parseInt(elements.verseRepeatsInput.value, 10) || 1;
+
+        if (isNaN(start) || isNaN(end) || start < 1 || end < 1 || start > end) {
+            alert('Please enter a valid verse range (Start Verse must be less than or equal to End Verse).');
             return;
         }
-        let html = '';
-        reciters.forEach(reciter => {
-            const reciterFiles = appState.library.reciters[reciter];
-            html += `<div class="reciter-section">
-                <div class="reciter-header">
-                    <strong>${reciter}</strong> (${reciterFiles.length} files)
-                </div>
-                <div class="reciter-content">`;
 
-            const surahMap = {};
-            reciterFiles.forEach(file => {
-                if (!surahMap[file.surah]) surahMap[file.surah] = [];
-                surahMap[file.surah].push(file);
-            });
+        let filteredFiles = appState.library.files.slice();
 
-            Object.keys(surahMap).forEach(surah => {
-                html += `<p>${surah}: ${surahMap[surah].length} verses</p>`;
-            });
-            html += `</div></div>`;
-        });
-        elements.recitersList.innerHTML = html;
-    }
+        if (reciter) {
+            filteredFiles = filteredFiles.filter(f => f.reciter === reciter);
+        }
+        if (surah) {
+            filteredFiles = filteredFiles.filter(f => f.surah === surah);
+        }
 
+        const playlist = filteredFiles
+            .filter(f => f.verse >= start && f.verse <= end && f.verse !== 0)
+            .sort((a, b) => a.verse - b.verse);
+
+        if (playlist.length === 0) {
+            alert('No audio files found for the selected criteria and verse range.');
+            return;
+        }
+
+        appState.playlist.files = playlist;
+        appState.playlist.currentIndex = 0;
+        appState.playlist.playlistRepeatCount = 0;
+        appState.playlist.totalRepeats = playlistRepeats;
+        appState.playback.totalVerseRepeats = verseRepeats;
+        appState.playback.currentVerseRepeat = 0;
+
+        updatePlaylistCount();
+        updatePlaylistDisplay();
+
+        // Start playback automatically
+        playTrack(appState.playlist.currentIndex);
+        elements.tabs[1].click(); // Switch to the Player tab
+    });
+
+    // Player and Controls Logic
     function updatePlaylistDisplay() {
-        elements.playlistFilesContainer.innerHTML = '';
+        const container = elements.playlistFilesContainer;
+        container.innerHTML = '';
+
         if (appState.playlist.files.length === 0) {
-            elements.playlistFilesContainer.innerHTML = '<li class="file-item"><span>No tracks in playlist</span></li>';
-            elements.playlistCount.textContent = '0';
+            container.innerHTML = '<li style="padding: 10px; font-size: 12px; color: #9ca3af; text-align: center;">Playlist is empty. Create a playlist above.</li>';
             return;
         }
 
         appState.playlist.files.forEach((file, index) => {
-            const li = document.createElement('li');
-            li.className = 'file-item' + (index === appState.playlist.currentIndex ? ' active' : '');
-
-            const main = document.createElement('div');
-            main.className = 'file-main';
-
-            const titleRow = document.createElement('div');
-            titleRow.style.display = 'flex';
-            titleRow.style.alignItems = 'center';
-
-            const indexSpan = document.createElement('span');
-            indexSpan.className = 'file-index';
-            indexSpan.textContent = index + 1;
-
-            const titleSpan = document.createElement('span');
-            titleSpan.className = 'file-title';
-            titleSpan.textContent = file.name;
-
-            titleRow.appendChild(indexSpan);
-            titleRow.appendChild(titleSpan);
-
-            const metaSpan = document.createElement('div');
-            metaSpan.className = 'file-meta';
-            metaSpan.innerHTML = `<span>${file.reciter || 'Unknown Reciter'}</span> · <span>${file.surah || 'Unknown Surah'}</span> ${file.verse ? `· <span>Verse ${file.verse}</span>` : ''}`;
-
-            main.appendChild(titleRow);
-            main.appendChild(metaSpan);
-
-            const delBtn = document.createElement('button');
-            delBtn.innerHTML = '🗑️';
-            delBtn.className = 'delete-btn';
-            delBtn.title = 'Delete from library';
-
-            li.appendChild(main);
-            li.appendChild(delBtn);
-
-            elements.playlistFilesContainer.appendChild(li);
-        });
-        elements.playlistCount.textContent = appState.playlist.files.length.toString();
-    }
-
-    function createPlaylistFromRange() {
-        const startVerse = parseInt(elements.startVerseInput.value);
-        const endVerse = parseInt(elements.endVerseInput.value);
-        const reciter = elements.reciterSelect.value;
-        const surah = elements.surahSelect.value;
-
-        if (isNaN(startVerse) || isNaN(endVerse)) {
-            alert('Please enter valid verse numbers');
-            return;
-        }
-        if (endVerse < startVerse) {
-            alert('End verse must be greater than or equal to start verse');
-            return;
-        }
-
-        let filteredFiles = appState.library.files.filter(file => {
-            if (reciter && file.reciter !== reciter) return false;
-            if (surah && file.surah !== surah) return false;
-            if (file.verse && (file.verse < startVerse || file.verse > endVerse)) return false;
-            return true;
+            const listItem = document.createElement('li');
+            listItem.className = `file-item ${index === appState.playlist.currentIndex ? 'active' : ''}`;
+            listItem.dataset.index = index;
+            listItem.innerHTML = `
+                <span class="file-index">${index + 1}.</span>
+                <div class="file-main">
+                    <span class="file-title">${file.surah} - Verse ${file.verse}</span>
+                    <span class="file-meta">${file.reciter} / ${file.name}</span>
+                </div>
+                <button class="delete-btn" data-id="${file.id}">🗑️</button>
+            `;
+            listItem.addEventListener('click', (e) => {
+                // Ignore click if target is the delete button
+                if (e.target.classList.contains('delete-btn')) return;
+                playTrack(index);
+            });
+            container.appendChild(listItem);
         });
 
-        filteredFiles.sort((a, b) => {
-            if (a.verse && b.verse) return a.verse - b.verse;
-            return a.name.localeCompare(b.name);
+        // Re-attach listeners for delete buttons (though they are disabled for the playlist in the UI)
+        container.querySelectorAll('.delete-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const id = e.currentTarget.dataset.id;
+                // Note: Deleting a track from the playlist this way modifies the list live
+                const indexToDelete = appState.playlist.files.findIndex(f => f.id === id);
+                if (indexToDelete !== -1) {
+                    appState.playlist.files.splice(indexToDelete, 1);
+                    if (appState.playlist.currentIndex >= appState.playlist.files.length) {
+                        appState.playlist.currentIndex = Math.max(0, appState.playlist.files.length - 1);
+                    }
+                    if (appState.playlist.files.length === 0) {
+                        stopPlayback();
+                    } else {
+                        updatePlaylistDisplay();
+                        if (appState.playback.isPlaying) {
+                            playTrack(appState.playlist.currentIndex);
+                        }
+                    }
+                }
+            });
         });
 
-        if (filteredFiles.length === 0) {
-            alert('No matching verses found in your library');
-            return;
+        const currentFile = appState.playlist.files[appState.playlist.currentIndex];
+        if (currentFile) {
+            elements.nowPlayingTitle.textContent = `${currentFile.surah}: Verse ${currentFile.verse}`;
+            elements.playbackInfo.textContent = `${currentFile.reciter} | Repeat ${appState.playback.currentVerseRepeat + 1} of ${appState.playback.totalVerseRepeats}`;
+            if ('mediaSession' in navigator) {
+                // Update Media Session Metadata
+                navigator.mediaSession.metadata = new MediaMetadata({
+                    title: `${currentFile.surah}: Verse ${currentFile.verse}`,
+                    artist: currentFile.reciter,
+                    album: 'Quranic Recitation Player'
+                });
+            }
+        } else {
+            elements.nowPlayingTitle.textContent = 'No track selected';
+            elements.playbackInfo.textContent = '—';
+            elements.progressBar.style.width = '0%';
+        }
+    }
+
+    function playTrack(index) {
+        if (appState.playlist.files.length === 0) return;
+
+        // Ensure index is valid
+        if (index < 0 || index >= appState.playlist.files.length) {
+            if (appState.playlist.playlistRepeatCount < appState.playlist.totalRepeats - 1) {
+                appState.playlist.playlistRepeatCount++;
+                appState.playlist.currentIndex = 0; // Wrap around to start
+                playTrack(0);
+                return;
+            } else {
+                stopPlayback();
+                return;
+            }
         }
 
-        appState.playlist.files = filteredFiles;
-        appState.playlist.currentIndex = 0;
-        appState.playback.currentVerseRepeat = 0;
-        appState.playlist.playlistRepeatCount = 0;
-        updatePlaylistDisplay();
-        alert(`Created playlist with ${filteredFiles.length} verses`);
-    }
-
-    function togglePlayback() {
-        if (appState.playback.isPlaying) pausePlayback();
-        else startPlayback();
-    }
-
-    function startPlayback() {
-        if (appState.playlist.files.length === 0) {
-            alert('Please add files to your playlist first');
-            return;
-        }
-        if (!appState.playback.isPlaying) playCurrentTrack();
-        else appState.playback.audio.play(); // Resume
-    }
-
-    function pausePlayback() {
-        appState.playback.isPlaying = false;
-        appState.playback.audio.pause();
-        elements.playButton.textContent = '▶';
-    }
-
-    function stopPlayback() {
-        pausePlayback();
-        appState.playback.audio.currentTime = 0;
-        elements.stopButton.disabled = true;
-        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = "none";
-    }
-
-    function playCurrentTrack() {
-        const file = appState.playlist.files[appState.playlist.currentIndex];
-        if (!file) return;
-
+        const file = appState.playlist.files[index];
+        appState.playlist.currentIndex = index;
         appState.playback.audio.src = file.url;
-        appState.playback.audio.play()
-            .then(() => {
-                appState.playback.isPlaying = true;
-                elements.playButton.textContent = '⏸';
-                elements.stopButton.disabled = false;
-                elements.nowPlayingTitle.textContent = file.name;
-                elements.playbackInfo.textContent = `${file.reciter} - ${file.surah}`;
-                updatePlaylistDisplay();
-                updateMediaSessionMetadata(file); // Update lock screen info
-            })
-            .catch(e => console.error('Playback error:', e));
-    }
+        appState.playback.audio.load(); // Ensure the audio element is ready
 
-    function playPreviousTrack() {
-        if (appState.playlist.currentIndex > 0) {
-            appState.playlist.currentIndex--;
-            appState.playback.currentVerseRepeat = 0;
-            playCurrentTrack();
-        }
+        appState.playback.audio.play().then(() => {
+            appState.playback.isPlaying = true;
+            elements.playButton.innerHTML = '⏸'; // Pause icon
+            elements.stopButton.disabled = false;
+        }).catch(error => {
+            console.error('Playback failed:', error);
+            // This often happens if play() is not triggered by user action, but here it's usually fine after the first click.
+            alert('Playback failed. Please ensure the player is in the active tab and try again.');
+        });
+
+        appState.playback.currentVerseRepeat = 0;
+        updatePlaylistDisplay();
     }
 
     function playNextTrack() {
-        if (appState.playlist.currentIndex < appState.playlist.files.length - 1) {
-            appState.playlist.currentIndex++;
-            appState.playback.currentVerseRepeat = 0;
-            playCurrentTrack();
+        appState.playback.currentVerseRepeat = 0; // Reset repeat counter for next verse
+        playTrack(appState.playlist.currentIndex + 1);
+    }
+
+    function playPrevTrack() {
+        // If current time is past 3 seconds, just restart the current track
+        if (appState.playback.audio.currentTime > 3) {
+            appState.playback.audio.currentTime = 0;
+            appState.playback.audio.play();
+            appState.playback.currentVerseRepeat = 0; // Restart verse repeat
+            updatePlaylistDisplay();
+            return;
+        }
+        // Otherwise, go to the previous track
+        appState.playback.currentVerseRepeat = 0; // Reset repeat counter for next verse
+        playTrack(appState.playlist.currentIndex - 1);
+    }
+
+    function playPauseToggle() {
+        if (appState.playlist.files.length === 0) return;
+
+        if (appState.playback.isPlaying) {
+            appState.playback.audio.pause();
+            elements.playButton.innerHTML = '▶'; // Play icon
+            appState.playback.isPlaying = false;
         } else {
-            if (appState.playlist.playlistRepeatCount < appState.playlist.totalRepeats - 1) {
-                appState.playlist.playlistRepeatCount++;
-                appState.playlist.currentIndex = 0;
-                appState.playback.currentVerseRepeat = 0;
-                playCurrentTrack();
+            // If src is empty (first play), load the first track
+            if (!appState.playback.audio.src) {
+                playTrack(appState.playlist.currentIndex);
             } else {
-                stopPlayback();
+                appState.playback.audio.play().then(() => {
+                    elements.playButton.innerHTML = '⏸'; // Pause icon
+                    appState.playback.isPlaying = true;
+                    elements.stopButton.disabled = false;
+                }).catch(error => {
+                    console.error('Attempt to play failed:', error);
+                    alert('Could not start playback. Please ensure the player is active.');
+                });
             }
         }
     }
 
-    function handleTrackEnd() {
+    function stopPlayback() {
+        appState.playback.audio.pause();
+        appState.playback.audio.currentTime = 0;
+        appState.playback.isPlaying = false;
+        elements.playButton.innerHTML = '▶';
+        elements.stopButton.disabled = true;
+        elements.progressBar.style.width = '0%';
+        appState.playback.currentVerseRepeat = 0;
+        appState.playlist.playlistRepeatCount = 0;
+        updatePlaylistDisplay();
+    }
+
+    elements.playButton.addEventListener('click', playPauseToggle);
+    elements.prevButton.addEventListener('click', playPrevTrack);
+    elements.nextButton.addEventListener('click', playNextTrack);
+    elements.stopButton.addEventListener('click', stopPlayback);
+    elements.clearPlaylistButton.addEventListener('click', () => {
+        appState.playlist.files = [];
+        stopPlayback();
+        updatePlaylistCount();
+        updatePlaylistDisplay();
+    });
+
+    // Time and Progress Bar Updates
+    appState.playback.audio.addEventListener('timeupdate', () => {
+        const audio = appState.playback.audio;
+        if (audio.duration) {
+            const progress = (audio.currentTime / audio.duration) * 100;
+            elements.progressBar.style.width = progress + '%';
+
+            const currentTimeText = formatTime(audio.currentTime);
+            const durationText = formatTime(audio.duration);
+
+            // Only update display if playing to avoid stuttering if this was used for playbackInfo
+            // elements.playbackInfo.textContent = `${currentTimeText} / ${durationText}`;
+        }
+    });
+
+    // Auto-advance/Repeat Logic
+    appState.playback.audio.addEventListener('ended', () => {
+        // Check for verse repeats first
         if (appState.playback.currentVerseRepeat < appState.playback.totalVerseRepeats - 1) {
             appState.playback.currentVerseRepeat++;
+            // Restart the current track
             appState.playback.audio.currentTime = 0;
-            appState.playback.audio.play();
+            appState.playback.audio.play().catch(e => console.error("Replay error:", e));
+            updatePlaylistDisplay(); // Update repeat counter display
+            return;
+        }
+
+        // If verse repeats are done, move to the next track
+        appState.playback.currentVerseRepeat = 0;
+        const nextIndex = appState.playlist.currentIndex + 1;
+
+        if (nextIndex < appState.playlist.files.length) {
+            playTrack(nextIndex);
+        } else if (appState.playlist.playlistRepeatCount < appState.playlist.totalRepeats - 1) {
+            // If end of playlist, check for playlist repeats
+            appState.playlist.playlistRepeatCount++;
+            playTrack(0); // Restart playlist
         } else {
-            playNextTrack();
+            // End of all playback and repeats
+            stopPlayback();
+            appState.playlist.currentIndex = 0;
+            updatePlaylistDisplay();
+        }
+    });
+
+    // --- NEW FUNCTION TO ADD FOR iOS CONTROL CENTER SKIP/REWIND ---
+    function setupMediaSessionHandlers() {
+        if ('mediaSession' in navigator) {
+            const audio = appState.playback.audio;
+
+            // Set up the rewind action (seek backward)
+            navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+                const seekTime = details.seekOffset || 10; // Default to 10 seconds rewind
+                audio.currentTime = Math.max(0, audio.currentTime - seekTime);
+                // No need to update the display here, timeupdate event will handle it
+            });
+
+            // Set up the skip action (seek forward)
+            navigator.mediaSession.setActionHandler('seekforward', (details) => {
+                const seekTime = details.seekOffset || 10; // Default to 10 seconds skip
+                audio.currentTime = Math.min(audio.duration, audio.currentTime + seekTime);
+                // No need to update the display here, timeupdate event will handle it
+            });
+
+            // Map native controls to your existing playback functions
+            navigator.mediaSession.setActionHandler('play', playPauseToggle);
+            navigator.mediaSession.setActionHandler('pause', playPauseToggle);
+            navigator.mediaSession.setActionHandler('previoustrack', playPrevTrack);
+            navigator.mediaSession.setActionHandler('nexttrack', playNextTrack);
+            navigator.mediaSession.setActionHandler('stop', stopPlayback);
         }
     }
+    // --- END NEW FUNCTION ---
 
-    function updateProgressBar() {
-        const duration = appState.playback.audio.duration;
-        const currentTime = appState.playback.audio.currentTime;
-        if (duration) {
-            const percent = (currentTime / duration) * 100;
-            elements.progressBar.style.width = percent + '%';
-        }
+    // PWA Install Banner Logic
+    let deferredPrompt;
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        // Show banner after a delay or user interaction
+        setTimeout(() => elements.installBanner.classList.add('show'), 2000);
+    });
+
+    elements.dismissBanner.addEventListener('click', () => {
+        elements.installBanner.classList.remove('show');
+    });
+
+    // Initialization
+    async function init() {
+        await initDB();
+        await loadLibraryFromDB();
+        updatePlaylistCount();
+
+        // --- IMPORTANT: Call the new function here to enable iOS skip/rewind ---
+        setupMediaSessionHandlers();
     }
 
-    function clearPlaylist() {
-        appState.playlist.files = [];
-        appState.playlist.currentIndex = 0;
-        stopPlayback();
-        updatePlaylistDisplay();
-        elements.nowPlayingTitle.textContent = "No track selected";
-    }
-
+    init();
 </script>
 </body>
 </html>

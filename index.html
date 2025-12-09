@@ -205,10 +205,6 @@
         }
         .btn-icon:disabled { opacity: 0.4; cursor: default; }
 
-        .btn-icon-small {
-            width: 28px; height: 28px; font-size: 10px;
-        }
-
         /* Settings cards */
         .settings-row {
             display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 8px;
@@ -243,8 +239,6 @@
         .progress-container {
             width: 100%; margin: 10px 0 15px;
         }
-
-        /* Custom Range Slider Styling */
         input[type=range].seek-slider {
             -webkit-appearance: none;
             width: 100%;
@@ -255,30 +249,15 @@
             outline: none;
             position: relative;
         }
-        /* Chrome/Safari Thumb */
         input[type=range].seek-slider::-webkit-slider-thumb {
             -webkit-appearance: none;
-            height: 16px;
-            width: 16px;
+            height: 16px; width: 16px;
             border-radius: 50%;
             background: #ffffff;
             border: 2px solid #22c55e;
-            margin-top: -5px; /* Centers thumb on track */
+            margin-top: -5px;
             box-shadow: 0 0 10px rgba(34,197,94,0.5);
             transition: transform 0.1s;
-        }
-        input[type=range].seek-slider::-webkit-slider-thumb:active {
-            transform: scale(1.2);
-        }
-        /* Firefox Thumb */
-        input[type=range].seek-slider::-moz-range-thumb {
-            height: 16px;
-            width: 16px;
-            border-radius: 50%;
-            background: #ffffff;
-            border: 2px solid #22c55e;
-            box-shadow: 0 0 10px rgba(34,197,94,0.5);
-            border: none;
         }
 
         .player-controls { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
@@ -545,14 +524,10 @@
 
                     <div class="player-controls">
                         <div class="transport-controls">
-                            <button id="rewindButton" class="btn-icon btn-icon-small" title="Rewind 10s">↺ 10</button>
-
                             <button id="prevButton" class="btn-icon" title="Previous track">⏮</button>
                             <button id="playButton" class="btn-icon" title="Play/Pause">▶</button>
                             <button id="stopButton" class="btn-icon" title="Stop" disabled>⏹</button>
                             <button id="nextButton" class="btn-icon" title="Next track">⏭</button>
-
-                            <button id="forwardButton" class="btn-icon btn-icon-small" title="Forward 10s">↻ 10</button>
                         </div>
                         <div class="playlist-meta">
                             <span class="pill">
@@ -767,12 +742,7 @@
         stopButton: document.getElementById('stopButton'),
         prevButton: document.getElementById('prevButton'),
         nextButton: document.getElementById('nextButton'),
-
-        // Seek elements
         seekSlider: document.getElementById('seekSlider'),
-        rewindButton: document.getElementById('rewindButton'),
-        forwardButton: document.getElementById('forwardButton'),
-
         nowPlayingTitle: document.getElementById('nowPlayingTitle'),
         playbackInfo: document.getElementById('playbackInfo'),
         installBanner: document.getElementById('installBanner'),
@@ -835,22 +805,34 @@
         elements.clearPlaylistButton.addEventListener('click', clearPlaylist);
         elements.clearLibraryButton.addEventListener('click', handleClearLibrary);
 
-        // Seek Buttons
-        elements.rewindButton.addEventListener('click', () => seekRelative(-10));
-        elements.forwardButton.addEventListener('click', () => seekRelative(10));
-
-        // Slider Interaction
+        // Slider Interaction (On screen)
         elements.seekSlider.addEventListener('input', handleSeekInput);
+        elements.seekSlider.addEventListener('change', () => {
+            // Update media session position ONLY when user finishes dragging
+            updatePositionState();
+        });
 
         // Audio Events
+        // IMPORTANT: We do NOT update mediaSession here to prevent iOS crash
         appState.playback.audio.addEventListener('timeupdate', updateProgressBar);
         appState.playback.audio.addEventListener('ended', handleTrackEnd);
 
+        // Ensure metadata is set when file loads
+        appState.playback.audio.addEventListener('loadedmetadata', () => {
+             updatePositionState();
+        });
+
+        // Update Position State explicitly on play/pause/seeked
         appState.playback.audio.addEventListener('play', () => {
             if (navigator.mediaSession) navigator.mediaSession.playbackState = "playing";
+            updatePositionState();
         });
         appState.playback.audio.addEventListener('pause', () => {
             if (navigator.mediaSession) navigator.mediaSession.playbackState = "paused";
+            updatePositionState();
+        });
+        appState.playback.audio.addEventListener('seeked', () => {
+            updatePositionState();
         });
 
         elements.playlistRepeatsInput.addEventListener('change', function() {
@@ -901,12 +883,10 @@
             const seekTime = audio.duration * (val / 100);
             audio.currentTime = seekTime;
         }
-        // Update gradient immediately while dragging
         updateSliderGradient(val);
     }
 
     function updateSliderGradient(value) {
-        // Updates the background gradient to match the slider thumb position
         elements.seekSlider.style.background = `linear-gradient(to right, #22c55e 0%, #eab308 ${value}%, rgba(31,41,55,0.9) ${value}%, rgba(31,41,55,0.9) 100%)`;
     }
 
@@ -919,7 +899,7 @@
             navigator.mediaSession.setActionHandler('nexttrack', () => playNextTrack());
             navigator.mediaSession.setActionHandler('stop', () => stopPlayback());
 
-            // Native seeking support
+            // Native seeking support (Lock Screen / Control Center)
             navigator.mediaSession.setActionHandler('seekbackward', (details) => {
                 const skipTime = details.seekOffset || 10;
                 seekRelative(-skipTime);
@@ -933,6 +913,26 @@
                     appState.playback.audio.currentTime = details.seekTime;
                 }
             });
+        }
+    }
+
+    // This helper updates the Lock Screen timeline.
+    // We call this ONLY on specific events (play/pause/seek), NOT continuously.
+    function updatePositionState() {
+        if ('mediaSession' in navigator && appState.playback.audio) {
+            const audio = appState.playback.audio;
+            if (audio.duration && !isNaN(audio.duration)) {
+                try {
+                    navigator.mediaSession.setPositionState({
+                        duration: audio.duration,
+                        playbackRate: audio.playbackRate,
+                        position: audio.currentTime
+                    });
+                } catch(e) {
+                    // Position state errors are often benign
+                    console.log("Position state update skipped");
+                }
+            }
         }
     }
 
@@ -1278,6 +1278,7 @@
                 elements.playbackInfo.textContent = `${file.reciter} - ${file.surah}`;
                 updatePlaylistDisplay();
                 updateMediaSessionMetadata(file);
+                updatePositionState();
             })
             .catch(e => console.error('Playback error:', e));
     }
@@ -1324,15 +1325,7 @@
             const percent = (currentTime / duration) * 100;
             elements.seekSlider.value = percent;
             updateSliderGradient(percent);
-
-            // Sync Media Session state
-            if ('mediaSession' in navigator) {
-                navigator.mediaSession.setPositionState({
-                    duration: duration,
-                    playbackRate: appState.playback.audio.playbackRate,
-                    position: currentTime
-                });
-            }
+            // Note: We deliberately do NOT update mediaSession here to avoid iOS crashes
         }
     }
 

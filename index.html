@@ -569,6 +569,16 @@
         }
     };
 
+    // Helper function to convert Files/Blobs into Base64 strings
+    function fileToBase64(blob) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = (error) => reject(error);
+            reader.readAsDataURL(blob);
+        });
+    }
+
     // IndexedDB persistence
     let db;
     const DB_NAME = 'quran-player';
@@ -648,15 +658,17 @@
             const store = tx.objectStore(FILE_STORE);
             const request = store.getAll();
 
-            request.onsuccess = () => {
+            request.onsuccess = async () => {
                 const records = request.result || [];
-                records.forEach((rec) => {
-                    const blob = rec.blob;
-                    const url = URL.createObjectURL(blob);
+
+                // Wait for all blobs to be converted to Base64 strings safely
+                await Promise.all(records.map(async (rec) => {
+                    const base64Url = await fileToBase64(rec.blob);
+
                     const fileObj = {
                         id: rec.id,
-                        file: blob,
-                        url: url,
+                        file: rec.blob,
+                        url: base64Url, // Using the safe Base64 string here
                         name: rec.name,
                         reciter: rec.reciter,
                         surah: rec.surah,
@@ -677,7 +689,7 @@
                         }
                         appState.library.surahs[fileObj.surah].push(fileObj);
                     }
-                });
+                }));
 
                 if (appState.library.files.length > 0) {
                     appState.playlist.files = appState.library.files.slice();
@@ -818,10 +830,14 @@
         for (const file of selectedFiles) {
             const verse = parseVerseNumber(file.name);
             const id = Date.now() + '-' + Math.random().toString(36).substring(2, 9);
+
+            // Convert to base64 immediately on upload
+            const safeUrl = await fileToBase64(file);
+
             const fileObj = {
                 id,
                 file: file,
-                url: URL.createObjectURL(file),
+                url: safeUrl, // Use the safe Base64 string
                 name: file.name,
                 reciter: reciter,
                 surah: surah,
@@ -837,7 +853,7 @@
             if (!appState.library.surahs[surah]) appState.library.surahs[surah] = [];
             appState.library.surahs[surah].push(fileObj);
 
-            // Save to IndexedDB
+            // Save to IndexedDB (This stores the original File object as a Blob, not the base64 string, keeping DB size optimal)
             await saveFileToDB(fileObj);
         }
 
@@ -948,8 +964,10 @@
         // 2. Delete from in-memory library
         const fileToDelete = appState.library.files.find(f => f.id === id);
         if (fileToDelete) {
-            // Revoke URL to free memory
-            URL.revokeObjectURL(fileToDelete.url);
+            // Revoke URL to free memory (No longer strictly needed with Base64, but good practice if you ever switch back)
+            if (fileToDelete.url.startsWith('blob:')) {
+                URL.revokeObjectURL(fileToDelete.url);
+            }
 
             // Filter out of library.files
             appState.library.files = appState.library.files.filter(f => f.id !== id);
@@ -1254,9 +1272,6 @@
 
             const currentTimeText = formatTime(audio.currentTime);
             const durationText = formatTime(audio.duration);
-
-            // Only update display if playing to avoid stuttering if this was used for playbackInfo
-            // elements.playbackInfo.textContent = `${currentTimeText} / ${durationText}`;
         }
     });
 
@@ -1290,7 +1305,7 @@
         }
     });
 
-    // --- NEW FUNCTION TO ADD FOR iOS CONTROL CENTER SKIP/REWIND ---
+    // Media Session Handlers
     function setupMediaSessionHandlers() {
         if ('mediaSession' in navigator) {
             const audio = appState.playback.audio;
@@ -1299,25 +1314,30 @@
             navigator.mediaSession.setActionHandler('seekbackward', (details) => {
                 const seekTime = details.seekOffset || 10; // Default to 10 seconds rewind
                 audio.currentTime = Math.max(0, audio.currentTime - seekTime);
-                // No need to update the display here, timeupdate event will handle it
             });
 
             // Set up the skip action (seek forward)
             navigator.mediaSession.setActionHandler('seekforward', (details) => {
                 const seekTime = details.seekOffset || 10; // Default to 10 seconds skip
                 audio.currentTime = Math.min(audio.duration, audio.currentTime + seekTime);
-                // No need to update the display here, timeupdate event will handle it
             });
 
             // Map native controls to your existing playback functions
-            navigator.mediaSession.setActionHandler('play', playPauseToggle);
-            navigator.mediaSession.setActionHandler('pause', playPauseToggle);
+            navigator.mediaSession.setActionHandler('play', () => {
+                if (!appState.playback.isPlaying && appState.playlist.files.length > 0) {
+                    playPauseToggle();
+                }
+            });
+            navigator.mediaSession.setActionHandler('pause', () => {
+                 if (appState.playback.isPlaying) {
+                    playPauseToggle();
+                 }
+            });
             navigator.mediaSession.setActionHandler('previoustrack', playPrevTrack);
             navigator.mediaSession.setActionHandler('nexttrack', playNextTrack);
             navigator.mediaSession.setActionHandler('stop', stopPlayback);
         }
     }
-    // --- END NEW FUNCTION ---
 
     // PWA Install Banner Logic
     let deferredPrompt;
@@ -1339,7 +1359,6 @@
         await loadLibraryFromDB();
         updatePlaylistCount();
 
-        // --- IMPORTANT: Call the new function here to enable iOS skip/rewind ---
         setupMediaSessionHandlers();
     }
 

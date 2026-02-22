@@ -292,16 +292,13 @@
         }
         .delete-btn:hover { opacity: 1; transform: scale(1.1); }
 
-        /* Reciter Organization */
         .reciter-section { margin-bottom: 20px; }
-        .reciter-header { padding: 12px; background-color: var(--light-color); border-radius: 6px; font-weight: 500; margin-bottom: 10px; cursor: pointer; }
+        .reciter-header { padding: 12px; background-color: rgba(148,163,184,0.1); border-radius: 6px; font-weight: 500; margin-bottom: 10px; cursor: pointer; }
         .reciter-content { padding-left: 15px; }
 
-        /* Alerts */
-        .alert { padding: 12px 15px; border-radius: 6px; margin-bottom: 15px; display: flex; align-items: center; gap: 10px; }
-        .alert-info { background-color: var(--accent-color); color: var(--primary-color); }
-        .alert-success { background-color: #d1fae5; color: #047857; }
-        .alert-warning { background-color: #fef9c3; color: #854d0e; }
+        .alert { padding: 12px 15px; border-radius: 6px; margin-bottom: 15px; display: flex; align-items: center; gap: 10px; font-size: 13px; }
+        .alert-info { background-color: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.4); }
+        .alert-success { background-color: rgba(16, 185, 129, 0.2); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.4); }
         .alert-icon { font-size: 16px; }
 
         .storage-zone {
@@ -327,7 +324,6 @@
             color: #e5e7eb; cursor: pointer; display: inline-flex;
             align-items: center; gap: 4px; border: 1px solid rgba(55,65,81,0.9);
         }
-        #installBanner button:hover { background-color: rgba(31,41,55,0.95); }
     </style>
 </head>
 <body>
@@ -368,7 +364,7 @@
         <div class="tab-content active" id="uploadContent">
             <h2 class="section-title">
                 <span class="section-icon">📂</span> Upload Audio Files
-                <small>Files are stored locally in your browser (IndexedDB).</small>
+                <small>Files are converted to data strings for reliable background play.</small>
             </h2>
             <div class="grid">
                 <div>
@@ -398,13 +394,13 @@
                     <div class="alert alert-info">
                         <span class="alert-icon">ℹ️</span>
                         <div>
-                            <strong>Tip:</strong> Name your verse files with numbers (e.g., <code>001.mp3</code>, <code>002.mp3</code>) so the app can detect verse numbers automatically.
+                            <strong>Tip:</strong> Files are stored locally. Use small MP3 files if possible to keep your browser fast.
                         </div>
                     </div>
                     <div class="alert alert-success">
                         <span class="alert-icon">💾</span>
                         <div>
-                            Your uploaded files are stored locally using <strong>IndexedDB</strong>.
+                            <strong>Persistent Mode:</strong> This version uses a background "Wake Lock" to prevent the lock screen from stopping your recitation.
                         </div>
                     </div>
                 </div>
@@ -412,9 +408,6 @@
 
             <div class="storage-zone">
                 <h3 class="section-title"><span class="section-icon">🗑️</span> Storage Management</h3>
-                <p style="font-size: 12px; color: #9ca3af; margin-bottom: 10px;">
-                    Use this to reduce database size or reset the application.
-                </p>
                 <button id="clearLibraryButton" class="btn btn-danger">
                     ⚠️ Clear Entire Library
                 </button>
@@ -424,7 +417,6 @@
         <div class="tab-content" id="playlistContent">
             <h2 class="section-title">
                 <span class="section-icon">🎧</span> Build Playlist
-                <small>Select reciter first to see available Surahs.</small>
             </h2>
 
             <div class="grid">
@@ -462,23 +454,16 @@
                     </h3>
                     <div class="settings-row">
                         <div class="setting-box">
-                            <h3>Playlist Settings</h3>
-                            <div class="form-group">
-                                <label for="playlistRepeats">Repeat Playlist:</label>
-                                <input type="number" id="playlistRepeats" min="1" value="1">
-                            </div>
+                            <h3>Playlist Repeats</h3>
+                            <input type="number" id="playlistRepeats" min="1" value="1">
                         </div>
                         <div class="setting-box">
-                            <h3>Verse Settings</h3>
-                            <div class="form-group">
-                                <label for="verseRepeats">Repeat Each Verse:</label>
-                                <input type="number" id="verseRepeats" min="1" value="3">
-                            </div>
+                            <h3>Verse Repeats</h3>
+                            <input type="number" id="verseRepeats" min="1" value="3">
                         </div>
                         <div class="setting-box">
-                            <h3>Info</h3>
                             <p style="font-size: 11px; color: #9ca3af; margin: 0;">
-                                The player will repeat each verse the specified number of times, then move to the next verse.
+                                Note: Keep your phone screen active when first starting playback to allow the "Wake Lock" to engage.
                             </p>
                         </div>
                     </div>
@@ -493,20 +478,16 @@
                             <p id="nowPlayingTitle" class="now-playing">No track selected</p>
                             <p id="playbackInfo" class="playback-info">—</p>
                         </div>
-                        <div class="pill">
-                            <span class="pill-dot"></span>
-                            <span style="font-size: 11px;">Verse-repeat mode</span>
-                        </div>
                     </div>
                     <div class="progress-bar-container">
                         <div id="progressBar" class="progress-bar"></div>
                     </div>
                     <div class="player-controls">
                         <div class="transport-controls">
-                            <button id="prevButton" class="btn-icon" title="Previous track">⏮</button>
-                            <button id="playButton" class="btn-icon" title="Play/Pause">▶</button>
-                            <button id="stopButton" class="btn-icon" title="Stop" disabled>⏹</button>
-                            <button id="nextButton" class="btn-icon" title="Next track">⏭</button>
+                            <button id="prevButton" class="btn-icon">⏮</button>
+                            <button id="playButton" class="btn-icon">▶</button>
+                            <button id="stopButton" class="btn-icon" disabled>⏹</button>
+                            <button id="nextButton" class="btn-icon">⏭</button>
                         </div>
                         <div class="playlist-meta">
                             <span class="pill">
@@ -518,29 +499,17 @@
 
                 <div class="playlist-card">
                     <div class="playlist-card-header">
-                        <div>
-                            <p class="playlist-title">Current Playlist</p>
-                            <p class="playlist-count">Tap verse to play. Tap 🗑️ to delete.</p>
-                        </div>
-                        <div class="playlist-actions">
-                            <button id="clearPlaylistButton" class="btn-secondary btn" style="font-size: 11px; padding: 6px 10px;">
-                                Clear Playlist
-                            </button>
-                        </div>
+                        <p class="playlist-title">Current Playlist</p>
+                        <button id="clearPlaylistButton" class="btn-secondary btn" style="font-size: 11px;">Clear</button>
                     </div>
-                    <ul id="playlistFiles" class="playlist-list">
-                        </ul>
+                    <ul id="playlistFiles" class="playlist-list"></ul>
                 </div>
             </div>
         </div>
 
         <div class="tab-content" id="organizationContent">
-            <div class="alert alert-info">
-                <span>💡</span>
-                <div>Organize your files by reciter and surah for easier playlist creation.</div>
-            </div>
             <div id="recitersList">
-                <p>No reciters added yet. Upload files first.</p>
+                <p>No reciters added yet.</p>
             </div>
         </div>
 
@@ -548,168 +517,58 @@
 </div>
 
 <script>
-    const appState = {
-        library: {
-            files: [],
-            reciters: {},
-            surahs: {}
-        },
-        playlist: {
-            files: [],
-            currentIndex: 0,
-            currentRepeat: 0,
-            playlistRepeatCount: 0,
-            totalRepeats: 1
-        },
-        playback: {
-            isPlaying: false,
-            audio: new Audio(),
-            currentVerseRepeat: 0,
-            totalVerseRepeats: 3
-        }
-    };
+    // --- STAGE 1: WAKE LOCK & BACKGROUND HELPERS ---
+    const silentTrack = "data:audio/wav;base64,UklGRigAAABXQVZFRm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAP8A/wD/";
+    const wakeLockAudio = new Audio(silentTrack);
+    wakeLockAudio.loop = true;
 
-    // Helper function to convert Files/Blobs into Base64 strings
-    function fileToBase64(blob) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = (error) => reject(error);
-            reader.readAsDataURL(blob);
-        });
+    function keepAudioAlive() {
+        wakeLockAudio.play().catch(() => {});
     }
 
-    // IndexedDB persistence
+    const appState = {
+        library: { files: [], reciters: {}, surahs: {} },
+        playlist: { files: [], currentIndex: 0, playlistRepeatCount: 0, totalRepeats: 1 },
+        playback: { isPlaying: false, audio: new Audio(), currentVerseRepeat: 0, totalVerseRepeats: 3 }
+    };
+
+    // --- STAGE 2: DATABASE ---
     let db;
-    const DB_NAME = 'quran-player';
+    const DB_NAME = 'quran-player-b64';
     const DB_VERSION = 1;
     const FILE_STORE = 'files';
 
     function initDB() {
         return new Promise((resolve, reject) => {
             const request = indexedDB.open(DB_NAME, DB_VERSION);
-            request.onupgradeneeded = (event) => {
-                db = event.target.result;
+            request.onupgradeneeded = (e) => {
+                db = e.target.result;
                 if (!db.objectStoreNames.contains(FILE_STORE)) {
-                    const store = db.createObjectStore(FILE_STORE, { keyPath: 'id' });
-                    store.createIndex('reciter', 'reciter', { unique: false });
-                    store.createIndex('surah', 'surah', { unique: false });
+                    db.createObjectStore(FILE_STORE, { keyPath: 'id' });
                 }
             };
-            request.onsuccess = (event) => {
-                db = event.target.result;
-                resolve();
-            };
-            request.onerror = () => {
-                console.error('IndexedDB error:', request.error);
-                reject(request.error);
-            };
+            request.onsuccess = (e) => { db = e.target.result; resolve(); };
+            request.onerror = () => reject();
         });
     }
 
-    function saveFileToDB(fileObj) {
+    function fileToBase64(file) {
         return new Promise((resolve, reject) => {
-            if (!db) return resolve();
-            const tx = db.transaction(FILE_STORE, 'readwrite');
-            const store = tx.objectStore(FILE_STORE);
-            const record = {
-                id: fileObj.id,
-                name: fileObj.name,
-                reciter: fileObj.reciter,
-                surah: fileObj.surah,
-                verse: fileObj.verse,
-                blob: fileObj.file
-            };
-            store.put(record);
-            tx.oncomplete = () => resolve();
-            tx.onerror = () => {
-                console.error('Failed to save file to DB', tx.error);
-                reject(tx.error);
-            };
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
         });
     }
 
-    function deleteFileFromDB(id) {
-        return new Promise((resolve, reject) => {
-            if (!db) return resolve();
-            const tx = db.transaction(FILE_STORE, 'readwrite');
-            const store = tx.objectStore(FILE_STORE);
-            const request = store.delete(id);
-            tx.oncomplete = () => resolve();
-            tx.onerror = () => reject(tx.error);
-        });
+    async function saveFileToDB(fileObj, fileBlob) {
+        const b64 = await fileToBase64(fileBlob);
+        const tx = db.transaction(FILE_STORE, 'readwrite');
+        tx.objectStore(FILE_STORE).put({ ...fileObj, data: b64 });
+        return new Promise(resolve => tx.oncomplete = resolve);
     }
 
-    function clearAllFromDB() {
-        return new Promise((resolve, reject) => {
-            if (!db) return resolve();
-            const tx = db.transaction(FILE_STORE, 'readwrite');
-            const store = tx.objectStore(FILE_STORE);
-            const request = store.clear();
-            tx.oncomplete = () => resolve();
-            tx.onerror = () => reject(tx.error);
-        });
-    }
-
-    function loadLibraryFromDB() {
-        return new Promise((resolve, reject) => {
-            if (!db) return resolve();
-            const tx = db.transaction(FILE_STORE, 'readonly');
-            const store = tx.objectStore(FILE_STORE);
-            const request = store.getAll();
-
-            request.onsuccess = async () => {
-                const records = request.result || [];
-
-                // Wait for all blobs to be converted to Base64 strings safely
-                await Promise.all(records.map(async (rec) => {
-                    const base64Url = await fileToBase64(rec.blob);
-
-                    const fileObj = {
-                        id: rec.id,
-                        file: rec.blob,
-                        url: base64Url, // Using the safe Base64 string here
-                        name: rec.name,
-                        reciter: rec.reciter,
-                        surah: rec.surah,
-                        verse: rec.verse
-                    };
-
-                    appState.library.files.push(fileObj);
-
-                    if (fileObj.reciter) {
-                        if (!appState.library.reciters[fileObj.reciter]) {
-                            appState.library.reciters[fileObj.reciter] = [];
-                        }
-                        appState.library.reciters[fileObj.reciter].push(fileObj);
-                    }
-                    if (fileObj.surah) {
-                        if (!appState.library.surahs[fileObj.surah]) {
-                            appState.library.surahs[fileObj.surah] = [];
-                        }
-                        appState.library.surahs[fileObj.surah].push(fileObj);
-                    }
-                }));
-
-                if (appState.library.files.length > 0) {
-                    appState.playlist.files = appState.library.files.slice();
-                    appState.playlist.currentIndex = 0;
-                }
-
-                updateRecitersDropdown();
-                updateSurahsDropdown(); // Initialize with ALL
-                updateRecitersList();
-                updatePlaylistDisplay();
-                resolve();
-            };
-            request.onerror = () => {
-                console.error('Failed to load from DB', request.error);
-                reject(request.error);
-            };
-        });
-    }
-
-    // DOM elements
+    // --- STAGE 3: UI ELEMENTS ---
     const elements = {
         tabs: document.querySelectorAll('.tab'),
         tabContents: document.querySelectorAll('.tab-content'),
@@ -741,628 +600,214 @@
         playlistCountDisplay: document.getElementById('playlistCount')
     };
 
-    // Utility functions
-    function pad(num, size = 2) {
-        let s = num + "";
-        while (s.length < size) s = "0" + s;
-        return s;
-    }
-
-    function formatTime(seconds) {
-        if (isNaN(seconds) || seconds < 0) return "0:00";
-        const minutes = Math.floor(seconds / 60);
-        const remainingSeconds = Math.floor(seconds % 60);
-        return `${minutes}:${pad(remainingSeconds)}`;
-    }
-
+    // --- STAGE 4: CORE LOGIC ---
     function parseVerseNumber(fileName) {
         const match = fileName.match(/(\d+)/);
         return match ? parseInt(match[1], 10) : 0;
     }
 
-    function updatePlaylistCount() {
-        elements.playlistCountDisplay.textContent = appState.playlist.files.length;
-    }
-
-    // Tab logic
     elements.tabs.forEach(tab => {
         tab.addEventListener('click', () => {
-            const target = tab.dataset.tab;
             elements.tabs.forEach(t => t.classList.remove('active'));
             elements.tabContents.forEach(c => c.classList.remove('active'));
             tab.classList.add('active');
-            document.getElementById(target + 'Content').classList.add('active');
-
-            if (target === 'organization') {
-                updateRecitersList();
-            }
+            document.getElementById(tab.dataset.tab + 'Content').classList.add('active');
+            if (tab.dataset.tab === 'organization') updateRecitersList();
         });
     });
-
-    // Upload & Library Logic
-    let selectedFiles = [];
-
-    elements.audioFilesInput.addEventListener('change', (event) => {
-        selectedFiles = Array.from(event.target.files);
-        updateFileListPreview();
-    });
-
-    function updateFileListPreview() {
-        const preview = elements.fileListPreview;
-        if (selectedFiles.length > 0) {
-            preview.innerHTML = `<p style="margin: 0; font-weight: 500; color: #a8dadc;">${selectedFiles.length} file(s) selected:</p>`;
-            const ul = document.createElement('ul');
-            ul.style.listStyle = 'none';
-            ul.style.padding = '0';
-            ul.style.margin = '5px 0 0';
-            ul.style.maxHeight = '80px';
-            ul.style.overflowY = 'auto';
-            selectedFiles.slice(0, 5).forEach(file => {
-                const li = document.createElement('li');
-                li.style.fontSize = '12px';
-                li.style.color = '#e5e7eb';
-                li.textContent = file.name;
-                ul.appendChild(li);
-            });
-            if (selectedFiles.length > 5) {
-                const li = document.createElement('li');
-                li.style.fontSize = '12px';
-                li.style.color = '#9ca3af';
-                li.textContent = `... and ${selectedFiles.length - 5} more.`;
-                ul.appendChild(li);
-            }
-            preview.appendChild(ul);
-        } else {
-            preview.textContent = 'No files selected';
-        }
-    }
 
     elements.uploadButton.addEventListener('click', async () => {
         const reciter = elements.reciterNameInput.value.trim();
         const surah = elements.surahNameInput.value.trim();
+        const files = Array.from(elements.audioFilesInput.files);
 
-        if (selectedFiles.length === 0 || !reciter || !surah) {
-            alert('Please select files and enter Reciter and Surah names.');
-            return;
-        }
+        if (!files.length || !reciter || !surah) return alert('Fill all fields');
 
-        const newFiles = [];
-        for (const file of selectedFiles) {
-            const verse = parseVerseNumber(file.name);
-            const id = Date.now() + '-' + Math.random().toString(36).substring(2, 9);
+        elements.uploadButton.disabled = true;
+        elements.uploadButton.textContent = "Processing...";
 
-            // Convert to base64 immediately on upload
-            const safeUrl = await fileToBase64(file);
-
+        for (const file of files) {
             const fileObj = {
-                id,
-                file: file,
-                url: safeUrl, // Use the safe Base64 string
+                id: Date.now() + Math.random().toString(36).substr(2, 5),
                 name: file.name,
-                reciter: reciter,
-                surah: surah,
-                verse: verse
+                reciter, surah,
+                verse: parseVerseNumber(file.name)
             };
-            newFiles.push(fileObj);
-
-            // Add to in-memory library
+            await saveFileToDB(fileObj, file);
             appState.library.files.push(fileObj);
-            if (!appState.library.reciters[reciter]) appState.library.reciters[reciter] = [];
-            appState.library.reciters[reciter].push(fileObj);
-
-            if (!appState.library.surahs[surah]) appState.library.surahs[surah] = [];
-            appState.library.surahs[surah].push(fileObj);
-
-            // Save to IndexedDB (This stores the original File object as a Blob, not the base64 string, keeping DB size optimal)
-            await saveFileToDB(fileObj);
         }
 
-        // Reset inputs and update UI
-        selectedFiles = [];
-        elements.audioFilesInput.value = null;
-        elements.reciterNameInput.value = '';
-        elements.surahNameInput.value = '';
-        updateFileListPreview();
-
-        updateRecitersDropdown();
-        updateSurahsDropdown();
-        updateRecitersList();
-
-        // Use the newly added files to create a default playlist/update display
-        appState.playlist.files = appState.library.files.slice();
-        updatePlaylistCount();
-        updatePlaylistDisplay();
-
-        alert(`Successfully added ${newFiles.length} files for ${reciter} - ${surah}!`);
+        location.reload(); // Simplest way to refresh state
     });
 
-    elements.clearLibraryButton.addEventListener('click', async () => {
-        if (!confirm('Are you absolutely sure you want to clear the entire library? This action is irreversible and will delete all stored audio files.')) {
-            return;
-        }
-        await clearAllFromDB();
-        // Reset in-memory state
-        appState.library.files = [];
-        appState.library.reciters = {};
-        appState.library.surahs = {};
-        appState.playlist.files = [];
-        appState.playback.audio.pause();
-        appState.playback.audio.src = '';
+    async function loadLibrary() {
+        const tx = db.transaction(FILE_STORE, 'readonly');
+        const records = await new Promise(r => tx.objectStore(FILE_STORE).getAll().onsuccess = (e) => r(e.target.result));
 
-        updateRecitersDropdown();
-        updateSurahsDropdown();
-        updateRecitersList();
-        updatePlaylistCount();
-        updatePlaylistDisplay();
-        alert('Library successfully cleared.');
-    });
-
-    // Organization & Deletion Logic
-    function updateRecitersList() {
-        const listContainer = elements.recitersList;
-        listContainer.innerHTML = '';
-
-        const reciters = Object.keys(appState.library.reciters).sort();
-        if (reciters.length === 0) {
-            listContainer.innerHTML = '<p style="color: #9ca3af;">No reciters added yet. Upload files first.</p>';
-            return;
-        }
-
-        reciters.forEach(reciterName => {
-            const reciterGroup = appState.library.reciters[reciterName];
-            const surahs = {};
-            reciterGroup.forEach(file => {
-                if (!surahs[file.surah]) surahs[file.surah] = [];
-                surahs[file.surah].push(file);
-            });
-
-            const reciterDiv = document.createElement('div');
-            reciterDiv.className = 'reciter-section';
-            reciterDiv.innerHTML = `<div class="reciter-header">${reciterName} (${reciterGroup.length} files)</div><div class="reciter-content"></div>`;
-
-            const contentDiv = reciterDiv.querySelector('.reciter-content');
-
-            Object.keys(surahs).sort().forEach(surahName => {
-                const files = surahs[surahName].sort((a, b) => a.verse - b.verse);
-                const surahList = document.createElement('ul');
-                surahList.style.listStyle = 'none';
-                surahList.style.padding = '0';
-                surahList.style.margin = '0 0 10px 0';
-                surahList.innerHTML = `<h4 style="font-size: 13px; color: #9ca3af; margin: 0 0 5px 0;">${surahName} (${files.length} verses)</h4>`;
-
-                files.forEach(file => {
-                    const listItem = document.createElement('li');
-                    listItem.className = 'file-item';
-                    listItem.innerHTML = `
-                        <div class="file-main">
-                            <span class="file-title">${file.name}</span>
-                            <span class="file-meta">Verse: ${file.verse}</span>
-                        </div>
-                        <button class="delete-btn" data-id="${file.id}">🗑️</button>
-                    `;
-                    surahList.appendChild(listItem);
-                });
-                contentDiv.appendChild(surahList);
-            });
-            listContainer.appendChild(reciterDiv);
+        records.forEach(rec => {
+            appState.library.files.push(rec);
+            if (!appState.library.reciters[rec.reciter]) appState.library.reciters[rec.reciter] = [];
+            appState.library.reciters[rec.reciter].push(rec);
+            if (!appState.library.surahs[rec.surah]) appState.library.surahs[rec.surah] = [];
+            appState.library.surahs[rec.surah].push(rec);
         });
 
-        document.querySelectorAll('.delete-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const id = e.currentTarget.dataset.id;
-                deleteFile(id);
-            });
-        });
+        updateDropdowns();
     }
 
-    async function deleteFile(id) {
-        if (!confirm('Delete this audio file? This is irreversible.')) return;
-
-        // 1. Delete from IndexedDB
-        await deleteFileFromDB(id);
-
-        // 2. Delete from in-memory library
-        const fileToDelete = appState.library.files.find(f => f.id === id);
-        if (fileToDelete) {
-            // Revoke URL to free memory (No longer strictly needed with Base64, but good practice if you ever switch back)
-            if (fileToDelete.url.startsWith('blob:')) {
-                URL.revokeObjectURL(fileToDelete.url);
-            }
-
-            // Filter out of library.files
-            appState.library.files = appState.library.files.filter(f => f.id !== id);
-
-            // Filter out of reciters/surahs collections
-            if (appState.library.reciters[fileToDelete.reciter]) {
-                appState.library.reciters[fileToDelete.reciter] = appState.library.reciters[fileToDelete.reciter].filter(f => f.id !== id);
-                if (appState.library.reciters[fileToDelete.reciter].length === 0) {
-                    delete appState.library.reciters[fileToDelete.reciter];
-                }
-            }
-            if (appState.library.surahs[fileToDelete.surah]) {
-                appState.library.surahs[fileToDelete.surah] = appState.library.surahs[fileToDelete.surah].filter(f => f.id !== id);
-                if (appState.library.surahs[fileToDelete.surah].length === 0) {
-                    delete appState.library.surahs[fileToDelete.surah];
-                }
-            }
-
-            // Filter out of current playlist
-            appState.playlist.files = appState.playlist.files.filter(f => f.id !== id);
-
-            // Stop playback if the current file was deleted
-            if (appState.playback.audio.src.includes(fileToDelete.id)) {
-                stopPlayback();
-            }
-
-            // Update UI
-            updateRecitersDropdown();
-            updateSurahsDropdown();
-            updateRecitersList();
-            updatePlaylistCount();
-            updatePlaylistDisplay();
-        }
+    function updateDropdowns() {
+        const rSel = elements.reciterSelect;
+        const sSel = elements.surahSelect;
+        Object.keys(appState.library.reciters).forEach(r => rSel.add(new Option(r, r)));
+        Object.keys(appState.library.surahs).forEach(s => sSel.add(new Option(s, s)));
     }
-
-    // Playlist Creation Logic
-    function updateRecitersDropdown() {
-        const select = elements.reciterSelect;
-        const currentReciter = select.value;
-        select.innerHTML = '<option value="">All Reciters</option>';
-        Object.keys(appState.library.reciters).sort().forEach(reciter => {
-            const option = document.createElement('option');
-            option.value = reciter;
-            option.textContent = reciter;
-            select.appendChild(option);
-        });
-        select.value = currentReciter || '';
-        if (!select.value) updateSurahsDropdown();
-    }
-
-    function updateSurahsDropdown() {
-        const reciterName = elements.reciterSelect.value;
-        const select = elements.surahSelect;
-        const currentSurah = select.value;
-        select.innerHTML = '<option value="">All Surahs</option>';
-
-        let files = [];
-        if (reciterName) {
-            files = appState.library.reciters[reciterName] || [];
-        } else {
-            files = appState.library.files;
-        }
-
-        const uniqueSurahs = [...new Set(files.map(f => f.surah))].sort();
-
-        uniqueSurahs.forEach(surah => {
-            const option = document.createElement('option');
-            option.value = surah;
-            option.textContent = surah;
-            select.appendChild(option);
-        });
-        select.value = currentSurah || '';
-    }
-
-    elements.reciterSelect.addEventListener('change', updateSurahsDropdown);
 
     elements.createPlaylistButton.addEventListener('click', () => {
         const reciter = elements.reciterSelect.value;
         const surah = elements.surahSelect.value;
-        const start = parseInt(elements.startVerseInput.value, 10);
-        const end = parseInt(elements.endVerseInput.value, 10);
-        const playlistRepeats = parseInt(elements.playlistRepeatsInput.value, 10) || 1;
-        const verseRepeats = parseInt(elements.verseRepeatsInput.value, 10) || 1;
+        const start = parseInt(elements.startVerseInput.value);
+        const end = parseInt(elements.endVerseInput.value);
 
-        if (isNaN(start) || isNaN(end) || start < 1 || end < 1 || start > end) {
-            alert('Please enter a valid verse range (Start Verse must be less than or equal to End Verse).');
-            return;
-        }
+        let filtered = appState.library.files.filter(f =>
+            (!reciter || f.reciter === reciter) &&
+            (!surah || f.surah === surah) &&
+            f.verse >= start && f.verse <= end
+        ).sort((a,b) => a.verse - b.verse);
 
-        let filteredFiles = appState.library.files.slice();
+        if (!filtered.length) return alert("No verses found");
 
-        if (reciter) {
-            filteredFiles = filteredFiles.filter(f => f.reciter === reciter);
-        }
-        if (surah) {
-            filteredFiles = filteredFiles.filter(f => f.surah === surah);
-        }
+        appState.playlist.files = filtered;
+        appState.playlist.totalRepeats = parseInt(elements.playlistRepeatsInput.value) || 1;
+        appState.playback.totalVerseRepeats = parseInt(elements.verseRepeatsInput.value) || 1;
 
-        const playlist = filteredFiles
-            .filter(f => f.verse >= start && f.verse <= end && f.verse !== 0)
-            .sort((a, b) => a.verse - b.verse);
-
-        if (playlist.length === 0) {
-            alert('No audio files found for the selected criteria and verse range.');
-            return;
-        }
-
-        appState.playlist.files = playlist;
-        appState.playlist.currentIndex = 0;
-        appState.playlist.playlistRepeatCount = 0;
-        appState.playlist.totalRepeats = playlistRepeats;
-        appState.playback.totalVerseRepeats = verseRepeats;
-        appState.playback.currentVerseRepeat = 0;
-
-        updatePlaylistCount();
-        updatePlaylistDisplay();
-
-        // Start playback automatically
-        playTrack(appState.playlist.currentIndex);
-        elements.tabs[1].click(); // Switch to the Player tab
+        updatePlaylistUI();
+        playTrack(0);
+        elements.tabs[1].click();
     });
 
-    // Player and Controls Logic
-    function updatePlaylistDisplay() {
-        const container = elements.playlistFilesContainer;
-        container.innerHTML = '';
-
-        if (appState.playlist.files.length === 0) {
-            container.innerHTML = '<li style="padding: 10px; font-size: 12px; color: #9ca3af; text-align: center;">Playlist is empty. Create a playlist above.</li>';
-            return;
-        }
-
-        appState.playlist.files.forEach((file, index) => {
-            const listItem = document.createElement('li');
-            listItem.className = `file-item ${index === appState.playlist.currentIndex ? 'active' : ''}`;
-            listItem.dataset.index = index;
-            listItem.innerHTML = `
-                <span class="file-index">${index + 1}.</span>
+    function updatePlaylistUI() {
+        elements.playlistFilesContainer.innerHTML = appState.playlist.files.map((f, i) => `
+            <li class="file-item ${i === appState.playlist.currentIndex ? 'active' : ''}" onclick="playTrack(${i})">
                 <div class="file-main">
-                    <span class="file-title">${file.surah} - Verse ${file.verse}</span>
-                    <span class="file-meta">${file.reciter} / ${file.name}</span>
+                    <span class="file-title">${f.surah} - Verse ${f.verse}</span>
+                    <span class="file-meta">${f.reciter}</span>
                 </div>
-                <button class="delete-btn" data-id="${file.id}">🗑️</button>
-            `;
-            listItem.addEventListener('click', (e) => {
-                // Ignore click if target is the delete button
-                if (e.target.classList.contains('delete-btn')) return;
-                playTrack(index);
-            });
-            container.appendChild(listItem);
-        });
-
-        // Re-attach listeners for delete buttons (though they are disabled for the playlist in the UI)
-        container.querySelectorAll('.delete-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const id = e.currentTarget.dataset.id;
-                // Note: Deleting a track from the playlist this way modifies the list live
-                const indexToDelete = appState.playlist.files.findIndex(f => f.id === id);
-                if (indexToDelete !== -1) {
-                    appState.playlist.files.splice(indexToDelete, 1);
-                    if (appState.playlist.currentIndex >= appState.playlist.files.length) {
-                        appState.playlist.currentIndex = Math.max(0, appState.playlist.files.length - 1);
-                    }
-                    if (appState.playlist.files.length === 0) {
-                        stopPlayback();
-                    } else {
-                        updatePlaylistDisplay();
-                        if (appState.playback.isPlaying) {
-                            playTrack(appState.playlist.currentIndex);
-                        }
-                    }
-                }
-            });
-        });
-
-        const currentFile = appState.playlist.files[appState.playlist.currentIndex];
-        if (currentFile) {
-            elements.nowPlayingTitle.textContent = `${currentFile.surah}: Verse ${currentFile.verse}`;
-            elements.playbackInfo.textContent = `${currentFile.reciter} | Repeat ${appState.playback.currentVerseRepeat + 1} of ${appState.playback.totalVerseRepeats}`;
-            if ('mediaSession' in navigator) {
-                // Update Media Session Metadata
-                navigator.mediaSession.metadata = new MediaMetadata({
-                    title: `${currentFile.surah}: Verse ${currentFile.verse}`,
-                    artist: currentFile.reciter,
-                    album: 'Quranic Recitation Player'
-                });
-            }
-        } else {
-            elements.nowPlayingTitle.textContent = 'No track selected';
-            elements.playbackInfo.textContent = '—';
-            elements.progressBar.style.width = '0%';
-        }
+            </li>
+        `).join('');
+        elements.playlistCountDisplay.textContent = appState.playlist.files.length;
     }
 
+    // --- STAGE 5: PLAYER CORE ---
     function playTrack(index) {
-        if (appState.playlist.files.length === 0) return;
-
-        // Ensure index is valid
         if (index < 0 || index >= appState.playlist.files.length) {
             if (appState.playlist.playlistRepeatCount < appState.playlist.totalRepeats - 1) {
                 appState.playlist.playlistRepeatCount++;
-                appState.playlist.currentIndex = 0; // Wrap around to start
-                playTrack(0);
-                return;
-            } else {
-                stopPlayback();
-                return;
+                return playTrack(0);
             }
+            return stopPlayback();
         }
 
-        const file = appState.playlist.files[index];
+        const track = appState.playlist.files[index];
         appState.playlist.currentIndex = index;
-        appState.playback.audio.src = file.url;
-        appState.playback.audio.load(); // Ensure the audio element is ready
 
-        appState.playback.audio.play().then(() => {
-            appState.playback.isPlaying = true;
-            elements.playButton.innerHTML = '⏸'; // Pause icon
-            elements.stopButton.disabled = false;
-        }).catch(error => {
-            console.error('Playback failed:', error);
-            // This often happens if play() is not triggered by user action, but here it's usually fine after the first click.
-            alert('Playback failed. Please ensure the player is in the active tab and try again.');
-        });
+        // Wake Lock Trigger
+        keepAudioAlive();
 
-        appState.playback.currentVerseRepeat = 0;
-        updatePlaylistDisplay();
+        // Get full data from DB for this track
+        const tx = db.transaction(FILE_STORE, 'readonly');
+        tx.objectStore(FILE_STORE).get(track.id).onsuccess = (e) => {
+            const fullData = e.target.result;
+            appState.playback.audio.src = fullData.data;
+            appState.playback.audio.currentTime = 0;
+            appState.playback.audio.play().then(() => {
+                appState.playback.isPlaying = true;
+                elements.playButton.innerHTML = '⏸';
+                elements.stopButton.disabled = false;
+                updateMediaSession(track);
+            });
+        };
+
+        updatePlaylistUI();
+        elements.nowPlayingTitle.textContent = `${track.surah}: Verse ${track.verse}`;
+        updateInfo();
     }
 
-    function playNextTrack() {
-        appState.playback.currentVerseRepeat = 0; // Reset repeat counter for next verse
-        playTrack(appState.playlist.currentIndex + 1);
+    function updateInfo() {
+        elements.playbackInfo.textContent = `Repeat ${appState.playback.currentVerseRepeat + 1} of ${appState.playback.totalVerseRepeats}`;
     }
 
-    function playPrevTrack() {
-        // If current time is past 3 seconds, just restart the current track
-        if (appState.playback.audio.currentTime > 3) {
+    appState.playback.audio.onended = () => {
+        if (appState.playback.currentVerseRepeat < appState.playback.totalVerseRepeats - 1) {
+            appState.playback.currentVerseRepeat++;
             appState.playback.audio.currentTime = 0;
             appState.playback.audio.play();
-            appState.playback.currentVerseRepeat = 0; // Restart verse repeat
-            updatePlaylistDisplay();
-            return;
-        }
-        // Otherwise, go to the previous track
-        appState.playback.currentVerseRepeat = 0; // Reset repeat counter for next verse
-        playTrack(appState.playlist.currentIndex - 1);
-    }
-
-    function playPauseToggle() {
-        if (appState.playlist.files.length === 0) return;
-
-        if (appState.playback.isPlaying) {
-            appState.playback.audio.pause();
-            elements.playButton.innerHTML = '▶'; // Play icon
-            appState.playback.isPlaying = false;
+            updateInfo();
         } else {
-            // If src is empty (first play), load the first track
-            if (!appState.playback.audio.src) {
-                playTrack(appState.playlist.currentIndex);
-            } else {
-                appState.playback.audio.play().then(() => {
-                    elements.playButton.innerHTML = '⏸'; // Pause icon
-                    appState.playback.isPlaying = true;
-                    elements.stopButton.disabled = false;
-                }).catch(error => {
-                    console.error('Attempt to play failed:', error);
-                    alert('Could not start playback. Please ensure the player is active.');
-                });
-            }
+            appState.playback.currentVerseRepeat = 0;
+            playTrack(appState.playlist.currentIndex + 1);
         }
-    }
+    };
+
+    appState.playback.audio.ontimeupdate = () => {
+        const a = appState.playback.audio;
+        elements.progressBar.style.width = ((a.currentTime / a.duration) * 100) + '%';
+    };
 
     function stopPlayback() {
         appState.playback.audio.pause();
-        appState.playback.audio.currentTime = 0;
         appState.playback.isPlaying = false;
         elements.playButton.innerHTML = '▶';
-        elements.stopButton.disabled = true;
-        elements.progressBar.style.width = '0%';
-        appState.playback.currentVerseRepeat = 0;
-        appState.playlist.playlistRepeatCount = 0;
-        updatePlaylistDisplay();
     }
 
-    elements.playButton.addEventListener('click', playPauseToggle);
-    elements.prevButton.addEventListener('click', playPrevTrack);
-    elements.nextButton.addEventListener('click', playNextTrack);
-    elements.stopButton.addEventListener('click', stopPlayback);
-    elements.clearPlaylistButton.addEventListener('click', () => {
-        appState.playlist.files = [];
-        stopPlayback();
-        updatePlaylistCount();
-        updatePlaylistDisplay();
-    });
-
-    // Time and Progress Bar Updates
-    appState.playback.audio.addEventListener('timeupdate', () => {
-        const audio = appState.playback.audio;
-        if (audio.duration) {
-            const progress = (audio.currentTime / audio.duration) * 100;
-            elements.progressBar.style.width = progress + '%';
-
-            const currentTimeText = formatTime(audio.currentTime);
-            const durationText = formatTime(audio.duration);
-        }
-    });
-
-    // Auto-advance/Repeat Logic
-    appState.playback.audio.addEventListener('ended', () => {
-        // Check for verse repeats first
-        if (appState.playback.currentVerseRepeat < appState.playback.totalVerseRepeats - 1) {
-            appState.playback.currentVerseRepeat++;
-            // Restart the current track
-            appState.playback.audio.currentTime = 0;
-            appState.playback.audio.play().catch(e => console.error("Replay error:", e));
-            updatePlaylistDisplay(); // Update repeat counter display
-            return;
-        }
-
-        // If verse repeats are done, move to the next track
-        appState.playback.currentVerseRepeat = 0;
-        const nextIndex = appState.playlist.currentIndex + 1;
-
-        if (nextIndex < appState.playlist.files.length) {
-            playTrack(nextIndex);
-        } else if (appState.playlist.playlistRepeatCount < appState.playlist.totalRepeats - 1) {
-            // If end of playlist, check for playlist repeats
-            appState.playlist.playlistRepeatCount++;
-            playTrack(0); // Restart playlist
-        } else {
-            // End of all playback and repeats
-            stopPlayback();
-            appState.playlist.currentIndex = 0;
-            updatePlaylistDisplay();
-        }
-    });
-
-    // Media Session Handlers
-    function setupMediaSessionHandlers() {
+    function updateMediaSession(track) {
         if ('mediaSession' in navigator) {
-            const audio = appState.playback.audio;
-
-            // Set up the rewind action (seek backward)
-            navigator.mediaSession.setActionHandler('seekbackward', (details) => {
-                const seekTime = details.seekOffset || 10; // Default to 10 seconds rewind
-                audio.currentTime = Math.max(0, audio.currentTime - seekTime);
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: `${track.surah} - Verse ${track.verse}`,
+                artist: track.reciter,
+                album: 'Quranic Player'
             });
-
-            // Set up the skip action (seek forward)
-            navigator.mediaSession.setActionHandler('seekforward', (details) => {
-                const seekTime = details.seekOffset || 10; // Default to 10 seconds skip
-                audio.currentTime = Math.min(audio.duration, audio.currentTime + seekTime);
-            });
-
-            // Map native controls to your existing playback functions
-            navigator.mediaSession.setActionHandler('play', () => {
-                if (!appState.playback.isPlaying && appState.playlist.files.length > 0) {
-                    playPauseToggle();
-                }
-            });
-            navigator.mediaSession.setActionHandler('pause', () => {
-                 if (appState.playback.isPlaying) {
-                    playPauseToggle();
-                 }
-            });
-            navigator.mediaSession.setActionHandler('previoustrack', playPrevTrack);
-            navigator.mediaSession.setActionHandler('nexttrack', playNextTrack);
-            navigator.mediaSession.setActionHandler('stop', stopPlayback);
+            navigator.mediaSession.playbackState = "playing";
         }
     }
 
-    // PWA Install Banner Logic
-    let deferredPrompt;
+    // Controls
+    elements.playButton.onclick = () => {
+        if (appState.playback.isPlaying) {
+            appState.playback.audio.pause();
+            appState.playback.isPlaying = false;
+            elements.playButton.innerHTML = '▶';
+        } else {
+            appState.playback.audio.play();
+            appState.playback.isPlaying = true;
+            elements.playButton.innerHTML = '⏸';
+        }
+    };
+    elements.nextButton.onclick = () => playTrack(appState.playlist.currentIndex + 1);
+    elements.prevButton.onclick = () => playTrack(appState.playlist.currentIndex - 1);
+    elements.stopButton.onclick = stopPlayback;
 
-    window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();
-        deferredPrompt = e;
-        // Show banner after a delay or user interaction
-        setTimeout(() => elements.installBanner.classList.add('show'), 2000);
-    });
+    elements.clearLibraryButton.onclick = () => {
+        if(confirm("Delete all files?")) {
+            indexedDB.deleteDatabase(DB_NAME);
+            location.reload();
+        }
+    };
 
-    elements.dismissBanner.addEventListener('click', () => {
-        elements.installBanner.classList.remove('show');
-    });
-
-    // Initialization
-    async function init() {
-        await initDB();
-        await loadLibraryFromDB();
-        updatePlaylistCount();
-
-        setupMediaSessionHandlers();
+    function updateRecitersList() {
+        const container = elements.recitersList;
+        container.innerHTML = Object.keys(appState.library.reciters).map(r => `
+            <div class="reciter-section">
+                <div class="reciter-header">${r}</div>
+                <div class="reciter-content">
+                    ${appState.library.reciters[r].length} verses stored.
+                </div>
+            </div>
+        `).join('');
     }
 
-    init();
+    // --- INIT ---
+    initDB().then(loadLibrary);
+
 </script>
 </body>
 </html>

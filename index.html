@@ -1125,10 +1125,14 @@
         appState.playback.audio.src = file.url;
         appState.playback.audio.load();
 
+        appState.playback.savedTime = 0;
         appState.playback.audio.play().then(() => {
             appState.playback.isPlaying = true;
             elements.playButton.innerHTML = '&#x23F8;';
             elements.stopButton.disabled = false;
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.playbackState = 'playing';
+            }
         }).catch(error => {
             console.error('Playback failed:', error);
         });
@@ -1154,38 +1158,47 @@
         playTrack(appState.playlist.currentIndex - 1);
     }
 
-    // CHANGED: reload buffer if iOS dropped it while paused in background
+    // Explicitly saved position — iOS can lose audio.currentTime after thaw
+    appState.playback.savedTime = 0;
+
+    // FIXED: Always do a full src reload on resume. Never trust readyState or
+    // currentTime after iOS freezes and thaws the PWA thread. We save the
+    // position ourselves and restore it after canplay fires.
     function resumeAudio() {
         const audio = appState.playback.audio;
-        const resumeFromTime = audio.currentTime;
+        const currentFile = appState.playlist.files[appState.playlist.currentIndex];
+        if (!currentFile) return;
 
-        const doPlay = () => {
+        const savedTime = appState.playback.savedTime;
+
+        // Unconditionally reload — iOS may have evicted the buffer entirely
+        audio.src = currentFile.url;
+        audio.load();
+
+        audio.addEventListener('canplay', () => {
+            audio.currentTime = savedTime;
             audio.play().then(() => {
-                elements.playButton.innerHTML = '&#x23F8;';
                 appState.playback.isPlaying = true;
+                elements.playButton.innerHTML = '&#x23F8;';
                 elements.stopButton.disabled = false;
-            }).catch(e => console.error('Play failed:', e));
-        };
-
-        if (audio.readyState < 2) {
-            // iOS dropped the buffer — reload and seek back to where we were
-            audio.load();
-            audio.addEventListener('canplay', () => {
-                audio.currentTime = resumeFromTime;
-                doPlay();
-            }, { once: true });
-        } else {
-            doPlay();
-        }
+                if ('mediaSession' in navigator) {
+                    navigator.mediaSession.playbackState = 'playing';
+                }
+            }).catch(e => console.error('Resume play failed:', e));
+        }, { once: true });
     }
 
     function playPauseToggle() {
         if (appState.playlist.files.length === 0) return;
 
         if (appState.playback.isPlaying) {
+            appState.playback.savedTime = appState.playback.audio.currentTime;
             appState.playback.audio.pause();
             elements.playButton.innerHTML = '&#x25B6;';
             appState.playback.isPlaying = false;
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.playbackState = 'paused';
+            }
         } else {
             if (!appState.playback.audio.src) {
                 playTrack(appState.playlist.currentIndex);
@@ -1223,6 +1236,18 @@
         if (audio.duration) {
             const progress = (audio.currentTime / audio.duration) * 100;
             elements.progressBar.style.width = progress + '%';
+            // Keep savedTime fresh so any background freeze captures latest position
+            appState.playback.savedTime = audio.currentTime;
+            // Keep iOS media session position state updated so lock screen controls work
+            if ('mediaSession' in navigator && appState.playback.isPlaying) {
+                try {
+                    navigator.mediaSession.setPositionState({
+                        duration: audio.duration,
+                        playbackRate: audio.playbackRate,
+                        position: audio.currentTime
+                    });
+                } catch(e) {}
+            }
         }
     });
 
@@ -1250,17 +1275,35 @@
         }
     });
 
-    // CHANGED: use resumeAudio() so buffer is reloaded if iOS dropped it
+    // Save position whenever we go to background so we can restore it on return
     document.addEventListener('visibilitychange', () => {
-        if (document.hidden) return;
-        if (appState.playback.isPlaying && appState.playback.audio.paused) {
+        if (document.hidden) {
+            // Save time NOW before the thread freezes — currentTime may be
+            // unreliable after iOS thaws us
+            appState.playback.savedTime = appState.playback.audio.currentTime;
+            return;
+        }
+
+        // Returning from home screen / lock screen / another app
+        if (appState.playback.isPlaying) {
+            // Always reload — iOS will have evicted the buffer
             resumeAudio();
         }
     });
 
+    // Handles iOS bfcache / PWA snapshot restoration
     window.addEventListener('pageshow', (event) => {
-        if (event.persisted && appState.playback.isPlaying && appState.playback.audio.paused) {
+        if (event.persisted && appState.playback.isPlaying) {
             resumeAudio();
+        }
+    });
+
+    // Also handle the case where iOS fires a 'pause' event on the audio element
+    // when backgrounding, but our isPlaying flag is still true
+    appState.playback.audio.addEventListener('pause', () => {
+        if (appState.playback.isPlaying && document.hidden) {
+            // iOS paused us in the background — mark savedTime so resume works
+            appState.playback.savedTime = appState.playback.audio.currentTime;
         }
     });
 
